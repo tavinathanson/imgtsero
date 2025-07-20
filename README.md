@@ -45,7 +45,7 @@ pip install -r requirements.txt
 
 ### Command Line Interface
 
-After installation, download IMGT/HLA data files for a specific version:
+Download IMGT/HLA data files for a specific version (optional - data is auto-downloaded when needed):
 
 ```bash
 # Using the installed command
@@ -59,49 +59,59 @@ This downloads:
 - `data/rel_dna_ser.3610.txt` - WMDA molecular to serological mapping for version 3.61.0
 - `data/rel_ser_ser.3610.txt` - WMDA serological antigen relationships for version 3.61.0
 
+**Note**: You no longer need to manually download data - it's automatically downloaded when you initialize the converter with a version.
+
 ### Python API
 
 ```python
 import imgtsero
 
-# Download data files
-imgtsero.download_data(3610)
+# Initialize with IMGT/HLA database version (data auto-downloaded if needed)
+converter = imgtsero.HLAConverter(3610)  # Version 3.61.0
+
+# Or use convenience function (version required)
+result = imgtsero.convert("A*01:01", 3610)
+# Returns: "A1" (molecular -> serological)
 
 # Bidirectional HLA conversion
 # Auto-detect format and convert to opposite
-result = imgtsero.convert("A*01:01")
+result = converter.convert("A*01:01")
 # Returns: "A1" (molecular -> serological)
 
-result = imgtsero.convert("A1")
+result = converter.convert("A1")
 # Returns: ["A*01:01", "A*01:02", "A*01:03"] (serological -> molecular)
 
 # Explicit format conversion
-result = imgtsero.convert("A*01:01", "s")  # Convert to serological
+result = converter.convert("A*01:01", "s")  # Convert to serological
 # Returns: "A1"
 
-result = imgtsero.convert("A1", "m")  # Convert to molecular
+result = converter.convert("A1", "m")  # Convert to molecular
 # Returns: ["A*01:01", "A*01:02", "A*01:03"]
 
 # Broad/split antigen support
 # Normal: A*02:03 maps to split antigen A203
-result = imgtsero.convert("A*02:03")
+result = converter.convert("A*02:03")
 # Returns: "A203"
 
-# With prefer_broad=True: return broad antigen A2 instead
-result = imgtsero.convert("A*02:03", prefer_broad=True)
+# With return_broad=True: return broad antigen A2 instead
+result = converter.convert("A*02:03", return_broad=True)
 # Returns: "A2"
 
 # Normal: A2 maps to direct A2 alleles only
-result = imgtsero.convert("A2")
+result = converter.convert("A2")
 # Returns: ["A*02:01", "A*02:02", ...] (56 alleles)
 
-# With include_broad=True: include split antigens A203, A210
-result = imgtsero.convert("A2", include_broad=True)
+# With expand_splits=True: include split antigens A203, A210
+result = converter.convert("A2", expand_splits=True)
+# Returns: ["A*02:01", "A*02:02", "A*02:03", "A*02:10", ...] (58 alleles)
+
+# Using convenience function with version
+result = imgtsero.convert("A2", 3610, expand_splits=True)
 # Returns: ["A*02:01", "A*02:02", "A*02:03", "A*02:10", ...] (58 alleles)
 
 # Error handling - raises HLAConversionError for unrecognized alleles
 try:
-    result = imgtsero.convert("A*99:99")  # Invalid allele
+    result = converter.convert("A*99:99")  # Invalid allele
 except imgtsero.HLAConversionError as e:
     print(f"Error: {e}")  # "Unrecognized molecular allele: A*99:99"
 ```
@@ -167,8 +177,8 @@ The library supports broad and split antigen relationships as defined by WMDA:
 - Example: A203 and A210 are splits of the broad antigen A2
 
 **Parameters:**
-- `include_broad=True`: When converting from broad antigen to molecular, include alleles from all split antigens
-- `prefer_broad=True`: When converting from molecular to serological, return the broad antigen instead of split
+- `expand_splits=True`: When converting from broad antigen to molecular, include alleles from all split antigens
+- `return_broad=True`: When converting from molecular to serological, return the broad antigen instead of split
 
 **Examples:**
 ```python
@@ -177,8 +187,8 @@ imgtsero.convert("A2")           # Returns only direct A2 alleles
 imgtsero.convert("A*02:03")      # Returns "A203" (split)
 
 # With broad/split support  
-imgtsero.convert("A2", include_broad=True)      # Includes A203 and A210 alleles
-imgtsero.convert("A*02:03", prefer_broad=True)  # Returns "A2" (broad)
+imgtsero.convert("A2", expand_splits=True)      # Includes A203 and A210 alleles
+imgtsero.convert("A*02:03", return_broad=True)  # Returns "A2" (broad)
 ```
 
 ### Data Sources

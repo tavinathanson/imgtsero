@@ -8,7 +8,8 @@ from typing import Dict, List, Optional, Set
 class HLAParser:
     """Parser for IMGT/HLA WMDA data files."""
     
-    def __init__(self, data_dir="data"):
+    def __init__(self, version: int, data_dir="data"):
+        self.version = version
         self.data_dir = data_dir
         self._molecular_to_serological = {}  # Maps A*01:01 -> 1
         self._serological_to_molecular = {}  # Maps A1 -> [A*01:01, A*01:02, ...]
@@ -17,29 +18,45 @@ class HLAParser:
         self._broad_to_splits = {}  # Maps A2 -> [A203, A210]
         self._split_to_broad = {}  # Maps A203 -> A2
         self._loaded = False
+        
+        # Auto-download data if not present
+        self._ensure_data_available()
+    
+    def _ensure_data_available(self):
+        """Ensure required WMDA data files are available, downloading if necessary."""
+        # Import here to avoid circular imports
+        from .downloader import download_data
+        import os
+        
+        # Check if required files exist
+        rel_dna_ser_file = os.path.join(self.data_dir, f"rel_dna_ser.{self.version}.txt")
+        rel_ser_ser_file = os.path.join(self.data_dir, f"rel_ser_ser.{self.version}.txt")
+        
+        if not (os.path.exists(rel_dna_ser_file) and os.path.exists(rel_ser_ser_file)):
+            print(f"Downloading IMGT/HLA data version {self.version}...")
+            try:
+                download_data(self.version, self.data_dir, verbose=False)
+                print(f"Successfully downloaded IMGT/HLA data version {self.version}")
+            except Exception as e:
+                raise RuntimeError(f"Failed to download IMGT/HLA data version {self.version}: {e}")
     
     def _load_data(self):
         """Load HLA data from WMDA files."""
         if self._loaded:
             return
         
-        # Find the most recent WMDA files
-        rel_dna_ser_files = [f for f in os.listdir(self.data_dir) if f.startswith("rel_dna_ser.") and f.endswith(".txt")]
-        if not rel_dna_ser_files:
-            raise FileNotFoundError("No rel_dna_ser files found in data directory")
+        # Use the specific version files
+        rel_dna_ser_file = os.path.join(self.data_dir, f"rel_dna_ser.{self.version}.txt")
+        rel_ser_ser_file = os.path.join(self.data_dir, f"rel_ser_ser.{self.version}.txt")
         
-        # Sort by version number (assume format rel_dna_ser.XXXX.txt)
-        rel_dna_ser_files.sort(key=lambda x: int(re.search(r'rel_dna_ser\.(\d+)\.txt', x).group(1)), reverse=True)
-        rel_dna_ser_file = os.path.join(self.data_dir, rel_dna_ser_files[0])
+        if not os.path.exists(rel_dna_ser_file):
+            raise FileNotFoundError(f"rel_dna_ser.{self.version}.txt not found in {self.data_dir}")
         
         # Load molecular to serological mapping
         self._load_rel_dna_ser(rel_dna_ser_file)
         
         # Load broad/split antigen relationships
-        rel_ser_ser_files = [f for f in os.listdir(self.data_dir) if f.startswith("rel_ser_ser.") and f.endswith(".txt")]
-        if rel_ser_ser_files:
-            rel_ser_ser_files.sort(key=lambda x: int(re.search(r'rel_ser_ser\.(\d+)\.txt', x).group(1)), reverse=True)
-            rel_ser_ser_file = os.path.join(self.data_dir, rel_ser_ser_files[0])
+        if os.path.exists(rel_ser_ser_file):
             self._load_rel_ser_ser(rel_ser_ser_file)
         
         self._loaded = True
@@ -178,7 +195,7 @@ class HLAParser:
         return sorted(results)
     
     
-    def get_molecular_to_serological(self, allele: str, prefer_broad: bool = False) -> Optional[str]:
+    def get_molecular_to_serological(self, allele: str, return_broad: bool = False) -> Optional[str]:
         """Get serological equivalent for a molecular allele."""
         self._load_data()
         # Convert to 2-field format first
@@ -195,20 +212,20 @@ class HLAParser:
                 else:
                     sero_name = f"{locus}{serological_num}"
                 
-                # If prefer_broad is True, try to return the broad antigen
-                if prefer_broad and sero_name in self._split_to_broad:
+                # If return_broad is True, try to return the broad antigen
+                if return_broad and sero_name in self._split_to_broad:
                     return self._split_to_broad[sero_name]
                 
                 return sero_name
         return None
     
-    def get_serological_mapping(self, serological: str, include_broad: bool = False) -> List[str]:
+    def get_serological_mapping(self, serological: str, expand_splits: bool = False) -> List[str]:
         """Get molecular alleles for a serological type."""
         self._load_data()
         alleles = list(self._serological_mapping.get(serological, []))
         
-        # If include_broad is True and this is a broad antigen, include split antigens
-        if include_broad and serological in self._broad_to_splits:
+        # If expand_splits is True and this is a broad antigen, include split antigens
+        if expand_splits and serological in self._broad_to_splits:
             for split_antigen in self._broad_to_splits[serological]:
                 split_alleles = self._serological_mapping.get(split_antigen, [])
                 alleles.extend(split_alleles)

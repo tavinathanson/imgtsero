@@ -21,7 +21,7 @@ class TestHLAParser(unittest.TestCase):
     
     def setUp(self):
         """Set up test fixtures."""
-        self.parser = HLAParser(self.test_data_dir)
+        self.parser = HLAParser(3610, self.test_data_dir)
     
     def test_get_loci(self):
         """Test getting all available loci with real data."""
@@ -125,16 +125,16 @@ class TestHLAParser(unittest.TestCase):
     def test_broad_split_serological_mapping(self):
         """Test serological mapping with broad/split functionality."""
         # Test normal mapping
-        a2_normal = self.parser.get_serological_mapping('A2', include_broad=False)
+        a2_normal = self.parser.get_serological_mapping('A2', expand_splits=False)
         self.assertIsInstance(a2_normal, list)
         self.assertGreater(len(a2_normal), 0)
         
-        # Test with include_broad=True
-        a2_broad = self.parser.get_serological_mapping('A2', include_broad=True)
+        # Test with expand_splits=True
+        a2_broad = self.parser.get_serological_mapping('A2', expand_splits=True)
         self.assertIsInstance(a2_broad, list)
         self.assertGreater(len(a2_broad), len(a2_normal))
         
-        # Verify that A203 and A210 alleles are included in broad A2
+        # Verify that A203 and A210 alleles are included in expanded A2
         a203_alleles = self.parser.get_serological_mapping('A203')
         a210_alleles = self.parser.get_serological_mapping('A210')
         
@@ -143,19 +143,19 @@ class TestHLAParser(unittest.TestCase):
         for allele in a210_alleles:
             self.assertIn(allele, a2_broad)
     
-    def test_prefer_broad_functionality(self):
-        """Test prefer_broad functionality in molecular to serological mapping."""
+    def test_return_broad_functionality(self):
+        """Test return_broad functionality in molecular to serological mapping."""
         # Test normal behavior
-        sero_normal = self.parser.get_molecular_to_serological('A*02:03', prefer_broad=False)
+        sero_normal = self.parser.get_molecular_to_serological('A*02:03', return_broad=False)
         self.assertEqual(sero_normal, 'A203')
         
-        # Test prefer_broad=True
-        sero_broad = self.parser.get_molecular_to_serological('A*02:03', prefer_broad=True)
+        # Test return_broad=True
+        sero_broad = self.parser.get_molecular_to_serological('A*02:03', return_broad=True)
         self.assertEqual(sero_broad, 'A2')
         
         # Test that alleles already mapping to broad aren't affected
-        sero_normal = self.parser.get_molecular_to_serological('A*02:01', prefer_broad=False)
-        sero_broad = self.parser.get_molecular_to_serological('A*02:01', prefer_broad=True)
+        sero_normal = self.parser.get_molecular_to_serological('A*02:01', return_broad=False)
+        sero_broad = self.parser.get_molecular_to_serological('A*02:01', return_broad=True)
         self.assertEqual(sero_normal, sero_broad)  # Both should be 'A2'
 
 

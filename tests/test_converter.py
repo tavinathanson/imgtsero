@@ -21,7 +21,7 @@ class TestHLAConverter(unittest.TestCase):
     
     def setUp(self):
         """Set up test fixtures."""
-        self.converter = HLAConverter(self.test_data_dir)
+        self.converter = HLAConverter(3610, self.test_data_dir)
     
     def test_to_serological(self):
         """Test conversion to serological format with real data."""
@@ -76,12 +76,12 @@ class TestHLAConverter(unittest.TestCase):
     def test_convenience_function(self):
         """Test the convenience convert function with real data."""
         # Test auto-detect
-        result = convert("A1", data_dir=self.test_data_dir)
+        result = convert("A1", 3610, data_dir=self.test_data_dir)
         self.assertIsInstance(result, list)
         self.assertIn("A*01:01", result)
         
         # Test explicit format
-        result = convert("A*01:01", "s", self.test_data_dir)
+        result = convert("A*01:01", 3610, "s", self.test_data_dir)
         self.assertEqual(result, "A1")
     
     def test_real_allele_existence(self):
@@ -183,56 +183,56 @@ class TestHLAConverter(unittest.TestCase):
         result = self.converter.convert("A*02:03", "s")
         self.assertEqual(result, "A203")
         
-        # Test prefer_broad=True
-        result = self.converter.convert("A*02:03", "s", prefer_broad=True)
+        # Test return_broad=True
+        result = self.converter.convert("A*02:03", "s", return_broad=True)
         self.assertEqual(result, "A2")
         
-        # Test that prefer_broad doesn't affect alleles that aren't splits
-        result = self.converter.convert("A*02:01", "s", prefer_broad=True)
+        # Test that return_broad doesn't affect alleles that aren't splits
+        result = self.converter.convert("A*02:01", "s", return_broad=True)
         self.assertEqual(result, "A2")  # A*02:01 maps to A2 (broad), so no change
         
-        # Test include_broad=True for serological to molecular
+        # Test expand_splits=True for serological to molecular
         a2_normal = self.converter.convert("A2", "m")
-        a2_broad = self.converter.convert("A2", "m", include_broad=True)
+        a2_broad = self.converter.convert("A2", "m", expand_splits=True)
         
-        # Should have more alleles with include_broad
+        # Should have more alleles with expand_splits
         self.assertGreater(len(a2_broad), len(a2_normal))
         
-        # Normal A2 alleles should be included in broad A2
+        # Normal A2 alleles should be included in expanded A2
         for allele in a2_normal:
             self.assertIn(allele, a2_broad)
         
-        # A203 alleles should be included in broad A2
+        # A203 alleles should be included in expanded A2
         a203_alleles = self.converter.convert("A203", "m")
         for allele in a203_alleles:
             self.assertIn(allele, a2_broad)
         
-        # A210 alleles should be included in broad A2
+        # A210 alleles should be included in expanded A2
         a210_alleles = self.converter.convert("A210", "m")
         for allele in a210_alleles:
             self.assertIn(allele, a2_broad)
     
     def test_broad_split_auto_detect(self):
         """Test broad/split functionality with auto-detection."""
-        # Auto-detect with prefer_broad
-        result = self.converter.convert("A*02:03", prefer_broad=True)
+        # Auto-detect with return_broad
+        result = self.converter.convert("A*02:03", return_broad=True)
         self.assertEqual(result, "A2")
         
-        # Auto-detect with include_broad
+        # Auto-detect with expand_splits
         a2_normal = self.converter.convert("A2")
-        a2_broad = self.converter.convert("A2", include_broad=True)
+        a2_broad = self.converter.convert("A2", expand_splits=True)
         self.assertGreater(len(a2_broad), len(a2_normal))
     
     def test_broad_split_edge_cases(self):
         """Test edge cases for broad/split functionality."""
-        # Test that non-split antigens aren't affected by prefer_broad
+        # Test that non-split antigens aren't affected by return_broad
         result_normal = self.converter.convert("A*01:01", "s")
-        result_broad = self.converter.convert("A*01:01", "s", prefer_broad=True)
+        result_broad = self.converter.convert("A*01:01", "s", return_broad=True)
         self.assertEqual(result_normal, result_broad)
         
-        # Test that non-broad antigens aren't affected by include_broad
+        # Test that non-broad antigens aren't affected by expand_splits
         a1_normal = self.converter.convert("A1", "m")
-        a1_broad = self.converter.convert("A1", "m", include_broad=True)
+        a1_broad = self.converter.convert("A1", "m", expand_splits=True)
         self.assertEqual(a1_normal, a1_broad)
     
     def test_to_2field_normalization_only(self):

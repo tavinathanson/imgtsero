@@ -13,11 +13,11 @@ class HLAConversionError(Exception):
 class HLAConverter:
     """Bidirectional HLA format converter."""
     
-    def __init__(self, data_dir="data"):
-        self.parser = HLAParser(data_dir)
+    def __init__(self, version: int, data_dir="data"):
+        self.parser = HLAParser(version, data_dir)
     
     def convert(self, hla_type: str, target_format: Optional[str] = None, 
-                include_broad: bool = False, prefer_broad: bool = False) -> Union[str, List[str]]:
+                expand_splits: bool = False, return_broad: bool = False) -> Union[str, List[str]]:
         """
         Convert HLA typing between serological and molecular formats.
         
@@ -25,9 +25,9 @@ class HLAConverter:
             hla_type: Input HLA type (e.g., "A*01:01", "A1")
             target_format: Target format ("s" for serological, "m" for molecular, 
                           or None for auto-detect and convert to opposite)
-            include_broad: When converting serological to molecular, include alleles 
+            expand_splits: When converting serological to molecular, include alleles 
                           from split antigens if this is a broad antigen (e.g., A2 includes A203)
-            prefer_broad: When converting molecular to serological, return broad 
+            return_broad: When converting molecular to serological, return broad 
                          antigen instead of split if available (e.g., A*02:03 -> A2 instead of A203)
         
         Returns:
@@ -36,13 +36,13 @@ class HLAConverter:
         if target_format is None:
             # Auto-detect and convert to opposite
             if self._is_serological(hla_type):
-                return self._to_molecular(hla_type, include_broad)
+                return self._to_molecular(hla_type, expand_splits)
             else:
-                return self._to_serology(hla_type, prefer_broad)
+                return self._to_serology(hla_type, return_broad)
         elif target_format == "s":
-            return self._to_serology(hla_type, prefer_broad)
+            return self._to_serology(hla_type, return_broad)
         elif target_format == "m":
-            return self._to_molecular(hla_type, include_broad)
+            return self._to_molecular(hla_type, expand_splits)
         else:
             raise ValueError(f"Unsupported target format: {target_format}. Use 's' for serological, 'm' for molecular, or None for auto-detect.")
     
@@ -56,7 +56,7 @@ class HLAConverter:
         # If it's not a molecular allele or doesn't have enough fields, return as-is
         return molecular_allele
     
-    def _to_serology(self, hla_type: str, prefer_broad: bool = False) -> str:
+    def _to_serology(self, hla_type: str, return_broad: bool = False) -> str:
         """Convert molecular allele to serological equivalent."""
         if '*' in hla_type:
             # Validate that this is a real molecular allele first
@@ -64,13 +64,13 @@ class HLAConverter:
                 raise HLAConversionError(f"Unrecognized molecular allele: {hla_type}")
             
             # Try exact match first
-            sero = self.parser.get_molecular_to_serological(hla_type, prefer_broad)
+            sero = self.parser.get_molecular_to_serological(hla_type, return_broad)
             if sero:
                 return sero
             
             # Try 2-field version
             two_field = self._to_2field(hla_type)
-            sero = self.parser.get_molecular_to_serological(two_field, prefer_broad)
+            sero = self.parser.get_molecular_to_serological(two_field, return_broad)
             if sero:
                 return sero
             
@@ -86,7 +86,7 @@ class HLAConverter:
         # Invalid format
         raise HLAConversionError(f"Invalid HLA format: {hla_type}")    
     
-    def _to_molecular(self, hla_type: str, include_broad: bool = False) -> List[str]:
+    def _to_molecular(self, hla_type: str, expand_splits: bool = False) -> List[str]:
         """Convert serological to molecular alleles (2-field format)."""
         if self._is_serological(hla_type):
             # Validate serological allele
@@ -94,7 +94,7 @@ class HLAConverter:
                 raise HLAConversionError(f"Unrecognized serological allele: {hla_type}")
             
             # Convert all to 2-field format
-            raw_alleles = self.parser.get_serological_mapping(hla_type, include_broad)
+            raw_alleles = self.parser.get_serological_mapping(hla_type, expand_splits)
             if not raw_alleles:
                 raise HLAConversionError(f"No molecular equivalents found for serological allele: {hla_type}")
             return [self._to_2field(allele) for allele in raw_alleles]
@@ -148,23 +148,24 @@ class HLAConverter:
         return hla_type in self.parser._serological_mapping
 
 
-def convert(hla_type: str, target_format: Optional[str] = None, data_dir: str = "data",
-            include_broad: bool = False, prefer_broad: bool = False) -> Union[str, List[str]]:
+def convert(hla_type: str, version: int, target_format: Optional[str] = None, data_dir: str = "data",
+            expand_splits: bool = False, return_broad: bool = False) -> Union[str, List[str]]:
     """
     Convenience function for HLA conversion.
     
     Args:
         hla_type: Input HLA type (e.g., "A*01:01", "A1")
+        version: IMGT/HLA database version (e.g., 3610 for version 3.61.0)
         target_format: Target format ("s" for serological, "m" for molecular, 
                       or None for auto-detect and convert to opposite)
         data_dir: Directory containing HLA data files
-        include_broad: When converting serological to molecular, include alleles 
+        expand_splits: When converting serological to molecular, include alleles 
                       from split antigens if this is a broad antigen (e.g., A2 includes A203)
-        prefer_broad: When converting molecular to serological, return broad 
+        return_broad: When converting molecular to serological, return broad 
                      antigen instead of split if available (e.g., A*02:03 -> A2 instead of A203)
     
     Returns:
         Converted HLA type(s). Returns string for serological, list for molecular.
     """
-    converter = HLAConverter(data_dir)
-    return converter.convert(hla_type, target_format, include_broad, prefer_broad)
+    converter = HLAConverter(version, data_dir)
+    return converter.convert(hla_type, target_format, expand_splits, return_broad)
