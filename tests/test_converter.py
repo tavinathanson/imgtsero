@@ -173,6 +173,89 @@ class TestHLAConverter(unittest.TestCase):
         result = self.converter.convert("Cw14")
         self.assertIsInstance(result, list)
         self.assertIn("C*14:02", result)
+    
+    def test_broad_split_conversion(self):
+        """Test broad/split antigen conversion functionality."""
+        # Test normal behavior (should work as before)
+        result = self.converter.convert("A*02:01", "s")
+        self.assertEqual(result, "A2")
+        
+        result = self.converter.convert("A*02:03", "s")
+        self.assertEqual(result, "A203")
+        
+        # Test prefer_broad=True
+        result = self.converter.convert("A*02:03", "s", prefer_broad=True)
+        self.assertEqual(result, "A2")
+        
+        # Test that prefer_broad doesn't affect alleles that aren't splits
+        result = self.converter.convert("A*02:01", "s", prefer_broad=True)
+        self.assertEqual(result, "A2")  # A*02:01 maps to A2 (broad), so no change
+        
+        # Test include_broad=True for serological to molecular
+        a2_normal = self.converter.convert("A2", "m")
+        a2_broad = self.converter.convert("A2", "m", include_broad=True)
+        
+        # Should have more alleles with include_broad
+        self.assertGreater(len(a2_broad), len(a2_normal))
+        
+        # Normal A2 alleles should be included in broad A2
+        for allele in a2_normal:
+            self.assertIn(allele, a2_broad)
+        
+        # A203 alleles should be included in broad A2
+        a203_alleles = self.converter.convert("A203", "m")
+        for allele in a203_alleles:
+            self.assertIn(allele, a2_broad)
+        
+        # A210 alleles should be included in broad A2
+        a210_alleles = self.converter.convert("A210", "m")
+        for allele in a210_alleles:
+            self.assertIn(allele, a2_broad)
+    
+    def test_broad_split_auto_detect(self):
+        """Test broad/split functionality with auto-detection."""
+        # Auto-detect with prefer_broad
+        result = self.converter.convert("A*02:03", prefer_broad=True)
+        self.assertEqual(result, "A2")
+        
+        # Auto-detect with include_broad
+        a2_normal = self.converter.convert("A2")
+        a2_broad = self.converter.convert("A2", include_broad=True)
+        self.assertGreater(len(a2_broad), len(a2_normal))
+    
+    def test_broad_split_edge_cases(self):
+        """Test edge cases for broad/split functionality."""
+        # Test that non-split antigens aren't affected by prefer_broad
+        result_normal = self.converter.convert("A*01:01", "s")
+        result_broad = self.converter.convert("A*01:01", "s", prefer_broad=True)
+        self.assertEqual(result_normal, result_broad)
+        
+        # Test that non-broad antigens aren't affected by include_broad
+        a1_normal = self.converter.convert("A1", "m")
+        a1_broad = self.converter.convert("A1", "m", include_broad=True)
+        self.assertEqual(a1_normal, a1_broad)
+    
+    def test_to_2field_normalization_only(self):
+        """Test that _to_2field only handles molecular normalization."""
+        # Test 4-field to 2-field normalization
+        result = self.converter._to_2field("A*01:01:01:01")
+        self.assertEqual(result, "A*01:01")
+        
+        # Test 3-field to 2-field normalization  
+        result = self.converter._to_2field("A*01:01:01")
+        self.assertEqual(result, "A*01:01")
+        
+        # Test 2-field remains unchanged
+        result = self.converter._to_2field("A*01:01")
+        self.assertEqual(result, "A*01:01")
+        
+        # Test that non-molecular input is returned as-is (no conversion attempted)
+        result = self.converter._to_2field("A1")
+        self.assertEqual(result, "A1")  # No conversion, just returns input
+        
+        # Test malformed input is returned as-is
+        result = self.converter._to_2field("invalid")
+        self.assertEqual(result, "invalid")
 
 
 if __name__ == '__main__':

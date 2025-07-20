@@ -6,7 +6,7 @@ import shutil
 from imgtsero.downloader import download_data
 
 
-class TestDataManager:
+class HLATestDataManager:
     """Manages test data download and cleanup."""
     
     def __init__(self):
@@ -40,4 +40,4 @@ class TestDataManager:
 
 
 # Global test data manager
-test_data_manager = TestDataManager()
+test_data_manager = HLATestDataManager()

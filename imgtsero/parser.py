@@ -14,6 +14,8 @@ class HLAParser:
         self._serological_to_molecular = {}  # Maps A1 -> [A*01:01, A*01:02, ...]
         self._serological_mapping = {}  # For backward compatibility
         self._allele_data = {}  # Maps locus -> set of alleles
+        self._broad_to_splits = {}  # Maps A2 -> [A203, A210]
+        self._split_to_broad = {}  # Maps A203 -> A2
         self._loaded = False
     
     def _load_data(self):
@@ -32,6 +34,13 @@ class HLAParser:
         
         # Load molecular to serological mapping
         self._load_rel_dna_ser(rel_dna_ser_file)
+        
+        # Load broad/split antigen relationships
+        rel_ser_ser_files = [f for f in os.listdir(self.data_dir) if f.startswith("rel_ser_ser.") and f.endswith(".txt")]
+        if rel_ser_ser_files:
+            rel_ser_ser_files.sort(key=lambda x: int(re.search(r'rel_ser_ser\.(\d+)\.txt', x).group(1)), reverse=True)
+            rel_ser_ser_file = os.path.join(self.data_dir, rel_ser_ser_files[0])
+            self._load_rel_ser_ser(rel_ser_ser_file)
         
         self._loaded = True
     
@@ -98,13 +107,55 @@ class HLAParser:
             self._serological_to_molecular[sero_name] = allele_list
             self._serological_mapping[sero_name] = allele_list
     
-    def _to_2field(self, allele):
-        """Convert allele to 2-field format."""
-        if '*' in allele and ':' in allele:
-            parts = allele.split(':')
+    def _load_rel_ser_ser(self, filepath):
+        """Load broad/split antigen relationships from rel_ser_ser.txt."""
+        with open(filepath, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#'):
+                    # Format: A;2;;203/210
+                    parts = line.split(';')
+                    if len(parts) >= 4:
+                        locus = parts[0]  # e.g., "A"
+                        broad_num = parts[1]  # e.g., "2"
+                        splits_field2 = parts[2]  # e.g., "23/24" or ""
+                        splits_field3 = parts[3]  # e.g., "203/210" or ""
+                        
+                        if locus and broad_num:
+                            broad_name = f"{locus}{broad_num}"  # e.g., "A2"
+                            
+                            # Handle C locus special case
+                            if locus == "C":
+                                broad_name = f"Cw{broad_num}"
+                            
+                            # Parse splits from both fields
+                            all_splits = []
+                            if splits_field2:
+                                all_splits.extend(splits_field2.split('/'))
+                            if splits_field3:
+                                all_splits.extend(splits_field3.split('/'))
+                            
+                            # Build split names and mappings
+                            split_names = []
+                            for split_num in all_splits:
+                                if split_num:  # Skip empty strings
+                                    if locus == "C":
+                                        split_name = f"Cw{split_num}"
+                                    else:
+                                        split_name = f"{locus}{split_num}"
+                                    split_names.append(split_name)
+                                    self._split_to_broad[split_name] = broad_name
+                            
+                            if split_names:
+                                self._broad_to_splits[broad_name] = split_names
+    
+    def _to_2field(self, molecular_allele):
+        """Convert molecular allele to 2-field format (e.g., A*01:01:01:01 -> A*01:01)."""
+        if '*' in molecular_allele and ':' in molecular_allele:
+            parts = molecular_allele.split(':')
             if len(parts) >= 2:
                 return f"{parts[0]}:{parts[1]}"
-        return allele
+        return molecular_allele
     
     def get_alleles_for_locus(self, locus: str) -> Set[str]:
         """Get all alleles for a specific locus."""
@@ -126,12 +177,8 @@ class HLAParser:
                     results.append(allele)
         return sorted(results)
     
-    def get_serological_mapping(self, serological: str) -> List[str]:
-        """Get molecular alleles for a serological type."""
-        self._load_data()
-        return self._serological_mapping.get(serological, [])
     
-    def get_molecular_to_serological(self, allele: str) -> Optional[str]:
+    def get_molecular_to_serological(self, allele: str, prefer_broad: bool = False) -> Optional[str]:
         """Get serological equivalent for a molecular allele."""
         self._load_data()
         # Convert to 2-field format first
@@ -144,7 +191,38 @@ class HLAParser:
                 locus = locus_match.group(1)
                 if locus == 'C':
                     # C locus uses Cw nomenclature
-                    return f"Cw{serological_num}"
+                    sero_name = f"Cw{serological_num}"
                 else:
-                    return f"{locus}{serological_num}"
+                    sero_name = f"{locus}{serological_num}"
+                
+                # If prefer_broad is True, try to return the broad antigen
+                if prefer_broad and sero_name in self._split_to_broad:
+                    return self._split_to_broad[sero_name]
+                
+                return sero_name
         return None
+    
+    def get_serological_mapping(self, serological: str, include_broad: bool = False) -> List[str]:
+        """Get molecular alleles for a serological type."""
+        self._load_data()
+        alleles = list(self._serological_mapping.get(serological, []))
+        
+        # If include_broad is True and this is a broad antigen, include split antigens
+        if include_broad and serological in self._broad_to_splits:
+            for split_antigen in self._broad_to_splits[serological]:
+                split_alleles = self._serological_mapping.get(split_antigen, [])
+                alleles.extend(split_alleles)
+            # Remove duplicates and sort
+            alleles = sorted(list(set(alleles)))
+        
+        return alleles
+    
+    def get_broad_antigen(self, serological: str) -> Optional[str]:
+        """Get broad antigen for a split antigen."""
+        self._load_data()
+        return self._split_to_broad.get(serological)
+    
+    def get_split_antigens(self, broad_antigen: str) -> List[str]:
+        """Get split antigens for a broad antigen."""
+        self._load_data()
+        return self._broad_to_splits.get(broad_antigen, [])

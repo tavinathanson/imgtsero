@@ -98,6 +98,65 @@ class TestHLAParser(unittest.TestCase):
         molecular_alleles = self.parser.get_serological_mapping('Cw12')
         self.assertIsInstance(molecular_alleles, list)
         self.assertIn('C*12:02', molecular_alleles)
+    
+    def test_broad_split_parsing(self):
+        """Test broad/split antigen parsing from rel_ser_ser.txt."""
+        # Test that broad/split relationships are loaded
+        a2_splits = self.parser.get_split_antigens('A2')
+        self.assertIsInstance(a2_splits, list)
+        self.assertIn('A203', a2_splits)
+        self.assertIn('A210', a2_splits)
+        
+        # Test reverse mapping (split to broad)
+        broad = self.parser.get_broad_antigen('A203')
+        self.assertEqual(broad, 'A2')
+        
+        broad = self.parser.get_broad_antigen('A210')
+        self.assertEqual(broad, 'A2')
+        
+        # Test B locus broad/split relationships
+        b5_splits = self.parser.get_split_antigens('B5')
+        self.assertIn('B51', b5_splits)
+        self.assertIn('B52', b5_splits)
+        
+        broad = self.parser.get_broad_antigen('B51')
+        self.assertEqual(broad, 'B5')
+    
+    def test_broad_split_serological_mapping(self):
+        """Test serological mapping with broad/split functionality."""
+        # Test normal mapping
+        a2_normal = self.parser.get_serological_mapping('A2', include_broad=False)
+        self.assertIsInstance(a2_normal, list)
+        self.assertGreater(len(a2_normal), 0)
+        
+        # Test with include_broad=True
+        a2_broad = self.parser.get_serological_mapping('A2', include_broad=True)
+        self.assertIsInstance(a2_broad, list)
+        self.assertGreater(len(a2_broad), len(a2_normal))
+        
+        # Verify that A203 and A210 alleles are included in broad A2
+        a203_alleles = self.parser.get_serological_mapping('A203')
+        a210_alleles = self.parser.get_serological_mapping('A210')
+        
+        for allele in a203_alleles:
+            self.assertIn(allele, a2_broad)
+        for allele in a210_alleles:
+            self.assertIn(allele, a2_broad)
+    
+    def test_prefer_broad_functionality(self):
+        """Test prefer_broad functionality in molecular to serological mapping."""
+        # Test normal behavior
+        sero_normal = self.parser.get_molecular_to_serological('A*02:03', prefer_broad=False)
+        self.assertEqual(sero_normal, 'A203')
+        
+        # Test prefer_broad=True
+        sero_broad = self.parser.get_molecular_to_serological('A*02:03', prefer_broad=True)
+        self.assertEqual(sero_broad, 'A2')
+        
+        # Test that alleles already mapping to broad aren't affected
+        sero_normal = self.parser.get_molecular_to_serological('A*02:01', prefer_broad=False)
+        sero_broad = self.parser.get_molecular_to_serological('A*02:01', prefer_broad=True)
+        self.assertEqual(sero_normal, sero_broad)  # Both should be 'A2'
 
 
 if __name__ == '__main__':

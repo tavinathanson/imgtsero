@@ -82,6 +82,23 @@ result = imgtsero.convert("A*01:01", "s")  # Convert to serological
 result = imgtsero.convert("A1", "m")  # Convert to molecular
 # Returns: ["A*01:01", "A*01:02", "A*01:03"]
 
+# Broad/split antigen support
+# Normal: A*02:03 maps to split antigen A203
+result = imgtsero.convert("A*02:03")
+# Returns: "A203"
+
+# With prefer_broad=True: return broad antigen A2 instead
+result = imgtsero.convert("A*02:03", prefer_broad=True)
+# Returns: "A2"
+
+# Normal: A2 maps to direct A2 alleles only
+result = imgtsero.convert("A2")
+# Returns: ["A*02:01", "A*02:02", ...] (56 alleles)
+
+# With include_broad=True: include split antigens A203, A210
+result = imgtsero.convert("A2", include_broad=True)
+# Returns: ["A*02:01", "A*02:02", "A*02:03", "A*02:10", ...] (58 alleles)
+
 # Error handling - raises HLAConversionError for unrecognized alleles
 try:
     result = imgtsero.convert("A*99:99")  # Invalid allele
@@ -138,6 +155,31 @@ This approach is consistent with:
 - The WMDA `rel_ser_ser.txt` file which uses "Cw" nomenclature
 - HLA nomenclature standards where the first field typically corresponds to the serological specificity
 - Historical HLA workshop designations where "w" was retained for C locus antigens
+
+### Broad/Split Antigen Support
+
+The library supports broad and split antigen relationships as defined by WMDA:
+
+**Broad antigens** are serological specificities that encompass multiple split antigens:
+- Example: A2 is a broad antigen that includes splits A203 and A210
+
+**Split antigens** are more specific serological types within a broad antigen:
+- Example: A203 and A210 are splits of the broad antigen A2
+
+**Parameters:**
+- `include_broad=True`: When converting from broad antigen to molecular, include alleles from all split antigens
+- `prefer_broad=True`: When converting from molecular to serological, return the broad antigen instead of split
+
+**Examples:**
+```python
+# Without broad/split support
+imgtsero.convert("A2")           # Returns only direct A2 alleles
+imgtsero.convert("A*02:03")      # Returns "A203" (split)
+
+# With broad/split support  
+imgtsero.convert("A2", include_broad=True)      # Includes A203 and A210 alleles
+imgtsero.convert("A*02:03", prefer_broad=True)  # Returns "A2" (broad)
+```
 
 ### Data Sources
 
