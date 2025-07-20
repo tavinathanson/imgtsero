@@ -174,6 +174,70 @@ class TestHLAConverter(unittest.TestCase):
         self.assertIsInstance(result, list)
         self.assertIn("C*14:02", result)
     
+    def test_c_locus_comprehensive_bidirectional(self):
+        """Test comprehensive bidirectional conversion for all C locus antigens."""
+        # Test cases based on WMDA data and HLA nomenclature standards
+        # According to research, ALL C locus serological antigens use Cw prefix
+        test_cases = [
+            ("C*01:02", "Cw1"),  # Serological 1 -> Cw1
+            ("C*02:02", "Cw2"),  # Serological 2 -> Cw2  
+            ("C*03:02", "Cw10"), # Serological 10 -> Cw10
+            ("C*03:03", "Cw9"),  # Serological 9 -> Cw9
+            ("C*03:07", "Cw3"),  # Serological 3 -> Cw3
+            ("C*04:01", "Cw4"),  # Serological 4 -> Cw4
+            ("C*05:01", "Cw5"),  # Serological 5 -> Cw5
+            ("C*06:02", "Cw6"),  # Serological 6 -> Cw6
+            ("C*07:01", "Cw7"),  # Serological 7 -> Cw7
+            ("C*08:01", "Cw8"),  # Serological 8 -> Cw8
+            ("C*12:02", "Cw12"), # Question mark cases -> use allele number
+            ("C*14:02", "Cw14"), # Question mark cases -> use allele number
+            ("C*15:02", "Cw15"), # Question mark cases -> use allele number
+            ("C*16:01", "Cw16"), # Question mark cases -> use allele number
+            ("C*17:01", "Cw17"), # Question mark cases -> use allele number
+            ("C*18:01", "Cw18"), # Question mark cases -> use allele number
+        ]
+        
+        for molecular, expected_sero in test_cases:
+            with self.subTest(molecular=molecular, expected_sero=expected_sero):
+                # Test molecular to serological
+                sero_result = self.converter.convert(molecular, "s")
+                self.assertEqual(sero_result, expected_sero, 
+                    f"Expected {molecular} -> {expected_sero}, got {sero_result}")
+                
+                # Test auto-detect molecular to serological  
+                auto_sero_result = self.converter.convert(molecular)
+                self.assertEqual(auto_sero_result, expected_sero,
+                    f"Auto-detect: Expected {molecular} -> {expected_sero}, got {auto_sero_result}")
+                
+                # Test serological to molecular (bidirectional)
+                molecular_result = self.converter.convert(expected_sero, "m")
+                self.assertIsInstance(molecular_result, list,
+                    f"Expected list for {expected_sero} -> molecular, got {type(molecular_result)}")
+                self.assertIn(molecular, molecular_result,
+                    f"Expected {molecular} in results for {expected_sero}, got {molecular_result}")
+                
+                # Test auto-detect serological to molecular
+                auto_molecular_result = self.converter.convert(expected_sero)
+                self.assertIsInstance(auto_molecular_result, list,
+                    f"Auto-detect: Expected list for {expected_sero} -> molecular, got {type(auto_molecular_result)}")
+                self.assertIn(molecular, auto_molecular_result,
+                    f"Auto-detect: Expected {molecular} in results for {expected_sero}, got {auto_molecular_result}")
+    
+    def test_c_locus_invalid_old_nomenclature(self):
+        """Test that old C nomenclature without 'w' is not accepted."""
+        # Test that C1, C2, etc. (without 'w') are rejected
+        invalid_old_names = ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10"]
+        
+        for invalid_name in invalid_old_names:
+            with self.subTest(invalid_name=invalid_name):
+                with self.assertRaises(HLAConversionError) as cm:
+                    self.converter.convert(invalid_name, "m")
+                self.assertIn("Unrecognized serological allele", str(cm.exception))
+                
+                # Test auto-detect also rejects it
+                with self.assertRaises(HLAConversionError):
+                    self.converter.convert(invalid_name)
+    
     def test_broad_split_conversion(self):
         """Test broad/split antigen conversion functionality."""
         # Test normal behavior (should work as before)

@@ -24,7 +24,7 @@ A Python library for downloading and working with IMGT/HLA data files from the o
 pip install git+https://github.com/tavinathanson/imgtsero.git
 
 # Install a specific version (recommended for reproducibility)
-pip install git+https://github.com/tavinathanson/imgtsero.git@v0.2.0
+pip install git+https://github.com/tavinathanson/imgtsero.git@v0.2.1
 
 # Or install from main branch
 pip install git+https://github.com/tavinathanson/imgtsero.git@main
@@ -147,6 +147,77 @@ imgtsero/
 
 ```bash
 python -m pytest tests/
+```
+
+## Development and Release Process
+
+### Running Tests
+
+```bash
+# Run all tests
+python3 -m unittest discover tests/
+
+# Run specific test modules
+python3 -m unittest tests.test_converter -v
+python3 -m unittest tests.test_parser -v
+```
+
+### Creating Releases
+
+To create a new release version:
+
+1. **Update version numbers** in all relevant files:
+   ```bash
+   # Update version in imgtsero/__init__.py
+   __version__ = "0.2.1"
+   
+   # Update version in pyproject.toml
+   version = "0.2.1"
+   
+   # Update version in setup.py
+   version="0.2.1"
+   ```
+
+2. **Commit the version changes**:
+   ```bash
+   git add imgtsero/__init__.py pyproject.toml setup.py
+   git commit -m "Bump version to 0.2.1"
+   ```
+
+3. **Create and push a git tag**:
+   ```bash
+   # Create an annotated tag
+   git tag -a v0.2.1 -m "Release v0.2.1: Fix bidirectional Cw conversion"
+   
+   # Push the tag to origin
+   git push origin v0.2.1
+   
+   # Or push all tags
+   git push --tags
+   ```
+
+4. **Verify the release**:
+   ```bash
+   # Check that the tag was created
+   git tag -l
+   
+   # Install from the specific tag to test
+   pip install git+https://github.com/tavinathanson/imgtsero.git@v0.2.1
+   ```
+
+### Installation from Specific Versions
+
+Users can install specific versions using git tags:
+
+```bash
+# Latest release
+pip install git+https://github.com/tavinathanson/imgtsero.git@v0.2.1
+
+# Previous version
+pip install git+https://github.com/tavinathanson/imgtsero.git@v0.2.0
+
+# Development branch
+pip install git+https://github.com/tavinathanson/imgtsero.git@main
 ```
 
 ## Implementation Notes

@@ -93,19 +93,26 @@ class HLAParser:
                                 
                                 # Handle serological mapping
                                 if serological_num and serological_num != '0':
-                                    if locus == 'C' and serological_num == '?':
-                                        # Special handling for C locus: use allele number for serological
-                                        # C*14:02 -> Cw14, C*12:02 -> Cw12
-                                        allele_parts = allele_suffix.split(':')
-                                        if len(allele_parts) >= 2:
-                                            sero_num = allele_parts[0]  # First field (e.g., "14", "12")
-                                            self._molecular_to_serological[two_field] = sero_num
-                                            sero_name = f"Cw{sero_num}"
-                                            
-                                            # Map serological to molecular (build lists)
-                                            if sero_name not in self._serological_to_molecular:
-                                                self._serological_to_molecular[sero_name] = set()
-                                            self._serological_to_molecular[sero_name].add(two_field)
+                                    if locus == 'C':
+                                        # Special handling for C locus: always use Cw nomenclature
+                                        if serological_num == '?':
+                                            # Use allele number for serological when '?' 
+                                            # C*14:02 -> Cw14, C*12:02 -> Cw12
+                                            allele_parts = allele_suffix.split(':')
+                                            if len(allele_parts) >= 2:
+                                                sero_num = allele_parts[0]  # First field (e.g., "14", "12")
+                                        else:
+                                            # Use provided serological number
+                                            # C*01:02 -> Cw1
+                                            sero_num = serological_num
+                                        
+                                        self._molecular_to_serological[two_field] = sero_num
+                                        sero_name = f"Cw{sero_num}"
+                                        
+                                        # Map serological to molecular (build lists)
+                                        if sero_name not in self._serological_to_molecular:
+                                            self._serological_to_molecular[sero_name] = set()
+                                        self._serological_to_molecular[sero_name].add(two_field)
                                     elif serological_num != '?':
                                         # Standard mapping for other loci
                                         self._molecular_to_serological[two_field] = serological_num
