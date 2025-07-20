@@ -67,12 +67,27 @@ class HLAParser:
             for line in f:
                 line = line.strip()
                 if line and not line.startswith('#'):
-                    # Format: A*;01:01:01:01;1;;;
+                    # Format per WMDA documentation:
+                    # Locus;Allele;Unambiguous;Possible;Assumed;Expert
                     parts = line.split(';')
                     if len(parts) >= 3:
-                        locus_prefix = parts[0]  # e.g., "A*", "C*"
-                        allele_suffix = parts[1]  # e.g., "01:01:01:01"
-                        serological_num = parts[2]  # e.g., "1" or "?" for C locus
+                        locus_prefix = parts[0]  # HLA Locus
+                        allele_suffix = parts[1]  # HLA Allele name
+                        unambiguous_sero = parts[2] if len(parts) > 2 else ""  # Unambiguous Serological Antigen
+                        possible_sero = parts[3] if len(parts) > 3 else ""     # Possible Serological Antigen
+                        assumed_sero = parts[4] if len(parts) > 4 else ""      # Assumed Serological Antigen
+                        expert_sero = parts[5] if len(parts) > 5 else ""       # Expert assigned exceptions
+                        
+                        # Priority order per WMDA: Unambiguous > Possible > Assumed > Expert
+                        # For now, use Unambiguous first, then Assumed (skipping Possible as it may have multiple values)
+                        if unambiguous_sero:
+                            serological_num = unambiguous_sero
+                        elif assumed_sero:
+                            serological_num = assumed_sero
+                        elif expert_sero:
+                            serological_num = expert_sero
+                        else:
+                            serological_num = ""
                         
                         if locus_prefix and allele_suffix:
                             # Construct full allele name: A*01:01:01:01
@@ -117,8 +132,21 @@ class HLAParser:
                                         # Standard mapping for other loci
                                         self._molecular_to_serological[two_field] = serological_num
                                         
-                                        # Build serological name (e.g., "A1", "B27")
-                                        sero_name = f"{locus}{serological_num}"
+                                        # Build serological name with WMDA standard nomenclature
+                                        if locus.startswith('DRB'):
+                                            # All DRB loci use DR prefix (WMDA data provides correct numbers)
+                                            # DRB1*01:01 (sero=1) -> DR1, DRB3*01:01 (sero=52) -> DR52, etc.
+                                            sero_name = f"DR{serological_num}"
+                                        elif locus == 'DQB1':
+                                            # DQB1 uses DQ nomenclature (DQA1 not used for serological mapping)
+                                            sero_name = f"DQ{serological_num}"
+                                        elif locus == 'DPB1':
+                                            # DPB1 uses DP nomenclature (DPA1 not used for serological mapping)
+                                            # Note: Most DPB1 alleles have "?" so this rarely triggers
+                                            sero_name = f"DP{serological_num}"
+                                        else:
+                                            # Standard mapping (e.g., "A1", "B27", "DQA12", "DPA13")
+                                            sero_name = f"{locus}{serological_num}"
                                         
                                         # Map serological to molecular (build lists)
                                         if sero_name not in self._serological_to_molecular:
@@ -216,6 +244,15 @@ class HLAParser:
                 if locus == 'C':
                     # C locus uses Cw nomenclature
                     sero_name = f"Cw{serological_num}"
+                elif locus.startswith('DRB'):
+                    # All DRB loci use DR prefix (WMDA data provides correct numbers)
+                    sero_name = f"DR{serological_num}"
+                elif locus == 'DQB1':
+                    # DQB1 uses DQ nomenclature
+                    sero_name = f"DQ{serological_num}"
+                elif locus == 'DPB1':
+                    # DPB1 uses DP nomenclature
+                    sero_name = f"DP{serological_num}"
                 else:
                     sero_name = f"{locus}{serological_num}"
                 
