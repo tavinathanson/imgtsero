@@ -2,6 +2,8 @@
 
 A Python library for downloading and working with IMGT/HLA data files from the official GitHub repository.
 
+**Warning**: not yet intended for general use. May have bugs: please inquire if interested!
+
 ## Features
 
 - Download IMGT/HLA WMDA files from official repository for comprehensive serological mapping
@@ -15,22 +17,41 @@ A Python library for downloading and working with IMGT/HLA data files from the o
 
 ## Installation
 
+### Install from GitHub
+
+```bash
+# Install directly from GitHub
+pip install git+https://github.com/tavinathanson/imgtsero.git
+
+# Or install a specific branch/tag
+pip install git+https://github.com/tavinathanson/imgtsero.git@main
+```
+
+### Development Installation
+
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/tavinathanson/imgtsero.git
 cd imgtsero
 
-# Install in development mode
-pip install -e .
+# Install in development mode with dev dependencies
+pip install -e ".[dev]"
+
+# Or just install dev dependencies
+pip install -r requirements.txt
 ```
 
 ## Usage
 
 ### Command Line Interface
 
-Download IMGT/HLA data files for a specific version:
+After installation, download IMGT/HLA data files for a specific version:
 
 ```bash
+# Using the installed command
+imgtsero 3610
+
+# Or using Python module
 python -m imgtsero 3610
 ```
 

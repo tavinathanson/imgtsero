@@ -4,8 +4,8 @@ import unittest
 import os
 import tempfile
 import shutil
-from unittest.mock import patch, MagicMock
-from imgtsero.downloader import download_file, download_data
+from unittest.mock import patch
+from imgtsero.downloader import download_file, download_data, extract_zip
 
 
 class TestDownloader(unittest.TestCase):
@@ -19,52 +19,71 @@ class TestDownloader(unittest.TestCase):
         """Clean up test fixtures."""
         shutil.rmtree(self.temp_dir)
     
-    @patch('imgtsero.downloader.urllib.request.urlretrieve')
-    def test_download_file_success(self, mock_urlretrieve):
-        """Test successful file download."""
-        mock_urlretrieve.return_value = None
-        
+    def test_download_file_with_invalid_url(self):
+        """Test download file with invalid URL."""
         filepath = os.path.join(self.temp_dir, "test_file.txt")
-        result = download_file("http://example.com/test.txt", filepath)
-        
-        self.assertTrue(result)
-        mock_urlretrieve.assert_called_once_with("http://example.com/test.txt", filepath)
-    
-    @patch('imgtsero.downloader.urllib.request.urlretrieve')
-    def test_download_file_failure(self, mock_urlretrieve):
-        """Test failed file download."""
-        from urllib.error import URLError
-        mock_urlretrieve.side_effect = URLError("Network error")
-        
-        filepath = os.path.join(self.temp_dir, "test_file.txt")
-        result = download_file("http://example.com/test.txt", filepath)
-        
+        # This should fail gracefully
+        result = download_file("http://invalid-domain-that-does-not-exist-9999.com/test.txt", filepath)
         self.assertFalse(result)
     
-    @patch('imgtsero.downloader.download_file')
-    @patch('imgtsero.downloader.extract_zip')
-    def test_download_data_success(self, mock_extract_zip, mock_download_file):
-        """Test successful data download."""
-        mock_download_file.return_value = True
-        mock_extract_zip.return_value = True
-        
-        # Mock os.remove to avoid FileNotFoundError
-        with patch('os.remove'):
+    def test_download_data_creates_correct_paths(self):
+        """Test that download_data creates correct file paths."""
+        # Mock the actual download to test path logic
+        with patch('imgtsero.downloader.download_file') as mock_download:
+            mock_download.return_value = True
+            
             result = download_data("3610", self.temp_dir, verbose=False)
-        
-        self.assertIn('rel_dna_ser_file', result)
-        self.assertIn('rel_ser_ser_file', result)
-        # Downloading two WMDA files
-        self.assertEqual(mock_download_file.call_count, 2)
-        mock_extract_zip.assert_not_called()
+            
+            # Check that correct files are referenced
+            self.assertIn('rel_dna_ser_file', result)
+            self.assertIn('rel_ser_ser_file', result)
+            
+            # Check file paths are correct
+            self.assertTrue(result['rel_dna_ser_file'].endswith('rel_dna_ser.3610.txt'))
+            self.assertTrue(result['rel_ser_ser_file'].endswith('rel_ser_ser.3610.txt'))
+            
+            # Check that download was called with correct URLs
+            calls = mock_download.call_args_list
+            self.assertEqual(len(calls), 2)
+            
+            # Check URLs contain correct version and file names
+            url1 = calls[0][0][0]
+            url2 = calls[1][0][0]
+            self.assertIn('3610', url1)
+            self.assertIn('3610', url2)
+            self.assertIn('rel_dna_ser.txt', url1)
+            self.assertIn('rel_ser_ser.txt', url2)
+    
+    def test_extract_zip_nonexistent_file(self):
+        """Test extract_zip with non-existent file."""
+        fake_zip = os.path.join(self.temp_dir, "nonexistent.zip")
+        result = extract_zip(fake_zip, self.temp_dir)
+        self.assertFalse(result)
+    
+    def test_download_data_version_string_format(self):
+        """Test download_data handles version string correctly."""
+        with patch('imgtsero.downloader.download_file') as mock_download:
+            mock_download.return_value = True
+            
+            # Test with different version formats
+            result = download_data("3610", self.temp_dir, verbose=False)
+            self.assertIsInstance(result, dict)
+            
+            # Version should be included in the URLs
+            url_calls = [call[0][0] for call in mock_download.call_args_list]
+            for url in url_calls:
+                self.assertIn('/3610/', url)
     
     @patch('imgtsero.downloader.download_file')
-    def test_download_data_failure(self, mock_download_file):
-        """Test failed data download."""
-        mock_download_file.return_value = False
+    def test_download_data_failure_handling(self, mock_download_file):
+        """Test download_data handles failures correctly."""
+        # First file succeeds, second fails
+        mock_download_file.side_effect = [True, False]
         
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(RuntimeError) as cm:
             download_data("3610", self.temp_dir, verbose=False)
+        
+        self.assertIn("Failed to download", str(cm.exception))
 
 
 if __name__ == '__main__':

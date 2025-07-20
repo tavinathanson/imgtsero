@@ -76,6 +76,28 @@ class TestHLAParser(unittest.TestCase):
         # Test unknown serological type
         unknown = self.parser.get_serological_mapping('UNKNOWN99')
         self.assertEqual(unknown, [])
+    
+    def test_c_locus_parsing(self):
+        """Test C locus parsing with special Cw nomenclature."""
+        # Test that C locus alleles are parsed
+        c_alleles = self.parser.get_alleles_for_locus('C')
+        self.assertGreater(len(c_alleles), 100)  # Should have many C alleles
+        
+        # Test C locus molecular to serological mapping
+        sero = self.parser.get_molecular_to_serological('C*14:02')
+        self.assertEqual(sero, 'Cw14')
+        
+        sero = self.parser.get_molecular_to_serological('C*12:02')
+        self.assertEqual(sero, 'Cw12')
+        
+        # Test Cw serological to molecular mapping
+        molecular_alleles = self.parser.get_serological_mapping('Cw14')
+        self.assertIsInstance(molecular_alleles, list)
+        self.assertIn('C*14:02', molecular_alleles)
+        
+        molecular_alleles = self.parser.get_serological_mapping('Cw12')
+        self.assertIsInstance(molecular_alleles, list)
+        self.assertIn('C*12:02', molecular_alleles)
 
 
 if __name__ == '__main__':

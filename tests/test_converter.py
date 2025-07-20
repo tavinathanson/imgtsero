@@ -142,7 +142,37 @@ class TestHLAConverter(unittest.TestCase):
         # These alleles exist in WMDA data but map to serological "0" (no equivalent)
         with self.assertRaises(HLAConversionError) as cm:
             self.converter.convert("A*01:11N", "s")
-        self.assertIn("Unrecognized molecular allele", str(cm.exception))
+        self.assertIn("No serological equivalent found for molecular allele", str(cm.exception))
+    
+    def test_c_locus_conversion(self):
+        """Test C locus conversion with Cw nomenclature."""
+        # Test molecular to serological (C* to Cw)
+        result = self.converter.convert("C*14:02", "s")
+        self.assertEqual(result, "Cw14")
+        
+        result = self.converter.convert("C*12:02", "s")
+        self.assertEqual(result, "Cw12")
+        
+        # Test with 4-field C allele
+        result = self.converter.convert("C*14:02:01:01", "s")
+        self.assertEqual(result, "Cw14")
+        
+        # Test serological to molecular (Cw to C*)
+        result = self.converter.convert("Cw14", "m")
+        self.assertIsInstance(result, list)
+        self.assertIn("C*14:02", result)
+        
+        result = self.converter.convert("Cw12", "m")
+        self.assertIsInstance(result, list)
+        self.assertIn("C*12:02", result)
+        
+        # Test auto-detect for C locus
+        result = self.converter.convert("C*14:02")
+        self.assertEqual(result, "Cw14")
+        
+        result = self.converter.convert("Cw14")
+        self.assertIsInstance(result, list)
+        self.assertIn("C*14:02", result)
 
 
 if __name__ == '__main__':
