@@ -20,10 +20,13 @@ A Python library for downloading and working with IMGT/HLA data files from the o
 ### Install from GitHub
 
 ```bash
-# Install directly from GitHub
+# Install latest version from GitHub
 pip install git+https://github.com/tavinathanson/imgtsero.git
 
-# Or install a specific branch/tag
+# Install a specific version (recommended for reproducibility)
+pip install git+https://github.com/tavinathanson/imgtsero.git@v0.2.0
+
+# Or install from main branch
 pip install git+https://github.com/tavinathanson/imgtsero.git@main
 ```
 
