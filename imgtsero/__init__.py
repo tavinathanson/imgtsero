@@ -4,5 +4,5 @@ from .downloader import download_data
 from .converter import convert, HLAConversionError, HLAConverter
 from .parser import HLAParser
 
-__version__ = "0.3.1"
+__version__ = "0.3.2"
 __all__ = ["download_data", "convert", "HLAConverter", "HLAParser", "HLAConversionError"]

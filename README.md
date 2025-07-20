@@ -27,7 +27,7 @@ A Python library for downloading and working with IMGT/HLA data files from the o
 pip install git+https://github.com/tavinathanson/imgtsero.git
 
 # Install a specific version (recommended for reproducibility)
-pip install git+https://github.com/tavinathanson/imgtsero.git@v0.3.1
+pip install git+https://github.com/tavinathanson/imgtsero.git@v0.3.2
 
 # Or install from main branch
 pip install git+https://github.com/tavinathanson/imgtsero.git@main
@@ -172,28 +172,28 @@ To create a new release version:
 1. **Update version numbers** in all relevant files:
    ```bash
    # Update version in imgtsero/__init__.py
-   __version__ = "0.3.1"
+   __version__ = "0.3.2"
    
    # Update version in pyproject.toml
-   version = "0.3.1"
+   version = "0.3.2"
    
    # Update version in setup.py
-   version="0.3.1"
+   version="0.3.2"
    ```
 
 2. **Commit the version changes**:
    ```bash
    git add imgtsero/__init__.py pyproject.toml setup.py
-   git commit -m "Bump version to 0.3.1"
+   git commit -m "Bump version to 0.3.2"
    ```
 
 3. **Create and push a git tag**:
    ```bash
    # Create an annotated tag
-   git tag -a v0.3.1 -m "Release v0.3.1: Add DR/DQ support and bead mapping compatibility"
+   git tag -a v0.3.2 -m "Release v0.3.2: Add DR/DQ support and bead mapping compatibility"
    
    # Push the tag to origin
-   git push origin v0.3.1
+   git push origin v0.3.2
    
    # Or push all tags
    git push --tags
@@ -205,7 +205,7 @@ To create a new release version:
    git tag -l
    
    # Install from the specific tag to test
-   pip install git+https://github.com/tavinathanson/imgtsero.git@v0.3.1
+   pip install git+https://github.com/tavinathanson/imgtsero.git@v0.3.2
    ```
 
 ### Installation from Specific Versions
@@ -214,9 +214,10 @@ Users can install specific versions using git tags:
 
 ```bash
 # Latest release
-pip install git+https://github.com/tavinathanson/imgtsero.git@v0.3.1
+pip install git+https://github.com/tavinathanson/imgtsero.git@v0.3.2
 
 # Previous versions
+pip install git+https://github.com/tavinathanson/imgtsero.git@v0.3.1
 pip install git+https://github.com/tavinathanson/imgtsero.git@v0.3.0
 pip install git+https://github.com/tavinathanson/imgtsero.git@v0.2.1
 pip install git+https://github.com/tavinathanson/imgtsero.git@v0.2.0
@@ -327,7 +328,11 @@ The library has been extensively tested against laboratory bead mapping files an
 - Full support for DR locus mappings (DR1-DR17, DR51-DR53)
 - Full support for DQ locus mappings (DQ1-DQ9)
 - Automatic extraction of DQB1 alleles from heterodimer specifications
-- The single incompatible mapping (DQ7 → DQB1*03:19) is due to an error in the bead mapping file where DQB1*03:19 actually maps to DQ3 in WMDA data
+- The single incompatible mapping is a confirmed error in the bead mapping file:
+  - **Bead mapping claims**: DQ7 → DQB1*03:19 (line 155: `DQ7,"DQA1*05:05, DQB1*03:19"`)
+  - **WMDA data shows**: DQB1*03:19 maps to DQ3 (has serological "3" in column 5)
+  - **Correct DQ7 mappings**: DQB1*03:01 and DQB1*03:04 (have serological "7" in column 3)
+  - This is a data error where the bead file incorrectly associates DQB1*03:19 with DQ7
 
 ## License
 
