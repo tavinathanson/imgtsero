@@ -17,7 +17,7 @@ class HLAConverter:
         self.parser = HLAParser(version, data_dir)
     
     def convert(self, hla_type: str, target_format: Optional[str] = None, 
-                expand_splits: bool = False, return_broad: bool = False) -> Union[str, List[str]]:
+                expand_splits: bool = False, handle_broad: str = "split") -> Union[str, List[str]]:
         """
         Convert HLA typing between serological and molecular formats.
         
@@ -27,20 +27,26 @@ class HLAConverter:
                           or None for auto-detect and convert to opposite)
             expand_splits: When converting serological to molecular, include alleles 
                           from split antigens if this is a broad antigen (e.g., A2 includes A203)
-            return_broad: When converting molecular to serological, return broad 
-                         antigen instead of split if available (e.g., A*02:03 -> A2 instead of A203)
+            handle_broad: How to handle broad/split relationships in molecular to serological conversion:
+                         "split" (default): Return split antigen (e.g., A*02:03 -> "A203")
+                         "broad": Return broad antigen when available (e.g., A*02:03 -> "A2")
+                         "both": Return "Broad (Split)" format when both exist (e.g., A*02:03 -> "A2 (A203)")
         
         Returns:
             Converted HLA type(s). Returns string for serological, list for molecular.
         """
+        # Validate handle_broad parameter
+        if handle_broad not in ["split", "broad", "both"]:
+            raise ValueError(f"Invalid handle_broad value: {handle_broad}. Use 'split', 'broad', or 'both'.")
+        
         if target_format is None:
             # Auto-detect and convert to opposite
             if self._is_serological(hla_type):
                 return self._to_molecular(hla_type, expand_splits)
             else:
-                return self._to_serology(hla_type, return_broad)
+                return self._to_serology(hla_type, handle_broad)
         elif target_format == "s":
-            return self._to_serology(hla_type, return_broad)
+            return self._to_serology(hla_type, handle_broad)
         elif target_format == "m":
             return self._to_molecular(hla_type, expand_splits)
         else:
@@ -56,7 +62,7 @@ class HLAConverter:
         # If it's not a molecular allele or doesn't have enough fields, return as-is
         return molecular_allele
     
-    def _to_serology(self, hla_type: str, return_broad: bool = False) -> str:
+    def _to_serology(self, hla_type: str, handle_broad: str = "split") -> str:
         """Convert molecular allele to serological equivalent."""
         if '*' in hla_type:
             # Validate that this is a real molecular allele first
@@ -64,17 +70,16 @@ class HLAConverter:
                 raise HLAConversionError(f"Unrecognized molecular allele: {hla_type}")
             
             # Try exact match first
-            sero = self.parser.get_molecular_to_serological(hla_type, return_broad)
-            if sero:
-                return sero
+            sero = self.parser.get_molecular_to_serological(hla_type, return_broad=False)
+            if not sero:
+                # Try 2-field version
+                two_field = self._to_2field(hla_type)
+                sero = self.parser.get_molecular_to_serological(two_field, return_broad=False)
             
-            # Try 2-field version
-            two_field = self._to_2field(hla_type)
-            sero = self.parser.get_molecular_to_serological(two_field, return_broad)
             if sero:
-                return sero
+                return self._format_serological_result(sero, handle_broad)
             
-            # If we have a valid molecular allele but no serological mapping
+            # If no serological mapping found
             raise HLAConversionError(f"No serological equivalent found for molecular allele: {hla_type}")
         
         # If already serological, validate and return as-is
@@ -84,7 +89,25 @@ class HLAConverter:
             return hla_type
         
         # Invalid format
-        raise HLAConversionError(f"Invalid HLA format: {hla_type}")    
+        raise HLAConversionError(f"Invalid HLA format: {hla_type}")
+    
+    def _format_serological_result(self, sero: str, handle_broad: str) -> str:
+        """Format serological result based on handle_broad setting."""
+        if handle_broad == "split":
+            return sero
+        elif handle_broad == "broad":
+            # Try to get broad antigen, return original if no broad exists
+            broad = self.parser.get_broad_antigen(sero)
+            return broad if broad else sero
+        elif handle_broad == "both":
+            # Get broad antigen if it exists
+            broad = self.parser.get_broad_antigen(sero)
+            if broad:
+                return f"{broad} ({sero})"
+            else:
+                return sero
+        else:
+            return sero    
     
     def _to_molecular(self, hla_type: str, expand_splits: bool = False) -> List[str]:
         """Convert serological to molecular alleles (2-field format)."""
@@ -149,7 +172,7 @@ class HLAConverter:
 
 
 def convert(hla_type: str, version: int, target_format: Optional[str] = None, data_dir: str = "data",
-            expand_splits: bool = False, return_broad: bool = False) -> Union[str, List[str]]:
+            expand_splits: bool = False, handle_broad: str = "split") -> Union[str, List[str]]:
     """
     Convenience function for HLA conversion.
     
@@ -161,11 +184,13 @@ def convert(hla_type: str, version: int, target_format: Optional[str] = None, da
         data_dir: Directory containing HLA data files
         expand_splits: When converting serological to molecular, include alleles 
                       from split antigens if this is a broad antigen (e.g., A2 includes A203)
-        return_broad: When converting molecular to serological, return broad 
-                     antigen instead of split if available (e.g., A*02:03 -> A2 instead of A203)
+        handle_broad: How to handle broad/split relationships in molecular to serological conversion:
+                     "split" (default): Return split antigen (e.g., A*02:03 -> "A203")
+                     "broad": Return broad antigen when available (e.g., A*02:03 -> "A2")  
+                     "both": Return "Broad (Split)" format when both exist (e.g., A*02:03 -> "A2 (A203)")
     
     Returns:
         Converted HLA type(s). Returns string for serological, list for molecular.
     """
     converter = HLAConverter(version, data_dir)
-    return converter.convert(hla_type, target_format, expand_splits, return_broad)
+    return converter.convert(hla_type, target_format, expand_splits, handle_broad)

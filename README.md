@@ -27,7 +27,7 @@ A Python library for downloading and working with IMGT/HLA data files from the o
 pip install git+https://github.com/tavinathanson/imgtsero.git
 
 # Install a specific version (recommended for reproducibility)
-pip install git+https://github.com/tavinathanson/imgtsero.git@v0.3.2
+pip install git+https://github.com/tavinathanson/imgtsero.git@v0.4.0
 
 # Or install from main branch
 pip install git+https://github.com/tavinathanson/imgtsero.git@main
@@ -95,13 +95,16 @@ result = converter.convert("A1", "m")  # Convert to molecular
 # Returns: ["A*01:01", "A*01:02", "A*01:03"]
 
 # Broad/split antigen support
-# Normal: A*02:03 maps to split antigen A203
+# Default: A*02:03 maps to split antigen A203
 result = converter.convert("A*02:03")
 # Returns: "A203"
 
-# With return_broad=True: return broad antigen A2 instead
-result = converter.convert("A*02:03", return_broad=True)
-# Returns: "A2"
+# Display options for broad/split relationships
+result = converter.convert("A*02:03", handle_broad="broad")
+# Returns: "A2" (show broad only)
+
+result = converter.convert("A*02:03", handle_broad="both")  
+# Returns: "A2 (A203)" (show both broad and split)
 
 # Normal: A2 maps to direct A2 alleles only
 result = converter.convert("A2")
@@ -172,28 +175,28 @@ To create a new release version:
 1. **Update version numbers** in all relevant files:
    ```bash
    # Update version in imgtsero/__init__.py
-   __version__ = "0.3.2"
+   __version__ = "0.4.0"
    
    # Update version in pyproject.toml
-   version = "0.3.2"
+   version = "0.4.0"
    
    # Update version in setup.py
-   version="0.3.2"
+   version="0.4.0"
    ```
 
 2. **Commit the version changes**:
    ```bash
    git add imgtsero/__init__.py pyproject.toml setup.py
-   git commit -m "Bump version to 0.3.2"
+   git commit -m "Bump version to 0.4.0"
    ```
 
 3. **Create and push a git tag**:
    ```bash
    # Create an annotated tag
-   git tag -a v0.3.2 -m "Release v0.3.2: Add DR/DQ support and bead mapping compatibility"
+   git tag -a v0.4.0 -m "Release v0.4.0: Add handle_broad parameter for flexible broad/split display formatting"
    
    # Push the tag to origin
-   git push origin v0.3.2
+   git push origin v0.4.0
    
    # Or push all tags
    git push --tags
@@ -205,7 +208,7 @@ To create a new release version:
    git tag -l
    
    # Install from the specific tag to test
-   pip install git+https://github.com/tavinathanson/imgtsero.git@v0.3.2
+   pip install git+https://github.com/tavinathanson/imgtsero.git@v0.4.0
    ```
 
 ### Installation from Specific Versions
@@ -214,9 +217,10 @@ Users can install specific versions using git tags:
 
 ```bash
 # Latest release
-pip install git+https://github.com/tavinathanson/imgtsero.git@v0.3.2
+pip install git+https://github.com/tavinathanson/imgtsero.git@v0.4.0
 
 # Previous versions
+pip install git+https://github.com/tavinathanson/imgtsero.git@v0.3.2
 pip install git+https://github.com/tavinathanson/imgtsero.git@v0.3.1
 pip install git+https://github.com/tavinathanson/imgtsero.git@v0.3.0
 pip install git+https://github.com/tavinathanson/imgtsero.git@v0.2.1
@@ -302,17 +306,21 @@ The library supports broad and split antigen relationships as defined by WMDA:
 
 **Parameters:**
 - `expand_splits=True`: When converting from broad antigen to molecular, include alleles from all split antigens
-- `return_broad=True`: When converting from molecular to serological, return the broad antigen instead of split
+- `handle_broad`: Controls molecular to serological display format:
+  - `"split"` (default): Show split antigen (e.g., "A203")
+  - `"broad"`: Show broad antigen when available (e.g., "A2")
+  - `"both"`: Show "Broad (Split)" format when both exist (e.g., "A2 (A203)")
 
 **Examples:**
 ```python
-# Without broad/split support
-imgtsero.convert("A2")           # Returns only direct A2 alleles
-imgtsero.convert("A*02:03")      # Returns "A203" (split)
-
-# With broad/split support  
+# Serological to molecular conversion
+imgtsero.convert("A2")                          # Returns only direct A2 alleles
 imgtsero.convert("A2", expand_splits=True)      # Includes A203 and A210 alleles
-imgtsero.convert("A*02:03", return_broad=True)  # Returns "A2" (broad)
+
+# Molecular to serological conversion options
+imgtsero.convert("A*02:03")                     # Returns "A203" (split, default)
+imgtsero.convert("A*02:03", handle_broad="broad")  # Returns "A2" (broad only)
+imgtsero.convert("A*02:03", handle_broad="both")   # Returns "A2 (A203)" (combined)
 ```
 
 ### Data Sources

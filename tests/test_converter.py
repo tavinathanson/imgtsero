@@ -247,12 +247,12 @@ class TestHLAConverter(unittest.TestCase):
         result = self.converter.convert("A*02:03", "s")
         self.assertEqual(result, "A203")
         
-        # Test return_broad=True
-        result = self.converter.convert("A*02:03", "s", return_broad=True)
+        # Test handle_broad="broad"
+        result = self.converter.convert("A*02:03", "s", handle_broad="broad")
         self.assertEqual(result, "A2")
         
-        # Test that return_broad doesn't affect alleles that aren't splits
-        result = self.converter.convert("A*02:01", "s", return_broad=True)
+        # Test that handle_broad="broad" doesn't affect alleles that aren't splits
+        result = self.converter.convert("A*02:01", "s", handle_broad="broad")
         self.assertEqual(result, "A2")  # A*02:01 maps to A2 (broad), so no change
         
         # Test expand_splits=True for serological to molecular
@@ -278,8 +278,8 @@ class TestHLAConverter(unittest.TestCase):
     
     def test_broad_split_auto_detect(self):
         """Test broad/split functionality with auto-detection."""
-        # Auto-detect with return_broad
-        result = self.converter.convert("A*02:03", return_broad=True)
+        # Auto-detect with handle_broad="broad"
+        result = self.converter.convert("A*02:03", handle_broad="broad")
         self.assertEqual(result, "A2")
         
         # Auto-detect with expand_splits
@@ -289,9 +289,9 @@ class TestHLAConverter(unittest.TestCase):
     
     def test_broad_split_edge_cases(self):
         """Test edge cases for broad/split functionality."""
-        # Test that non-split antigens aren't affected by return_broad
+        # Test that non-split antigens aren't affected by handle_broad="broad"
         result_normal = self.converter.convert("A*01:01", "s")
-        result_broad = self.converter.convert("A*01:01", "s", return_broad=True)
+        result_broad = self.converter.convert("A*01:01", "s", handle_broad="broad")
         self.assertEqual(result_normal, result_broad)
         
         # Test that non-broad antigens aren't affected by expand_splits
@@ -320,6 +320,74 @@ class TestHLAConverter(unittest.TestCase):
         # Test malformed input is returned as-is
         result = self.converter._to_2field("invalid")
         self.assertEqual(result, "invalid")
+    
+    def test_handle_broad_both_format(self):
+        """Test handle_broad='both' formatting functionality."""
+        # Test split antigen with broad parent - should show "Broad (Split)"
+        result = self.converter.convert("A*02:03", "s", handle_broad="both")
+        self.assertEqual(result, "A2 (A203)")
+        
+        result = self.converter.convert("A*02:10", "s", handle_broad="both")
+        self.assertEqual(result, "A2 (A210)")
+        
+        # Test antigen that only has broad (no split) - should show just broad
+        result = self.converter.convert("A*02:01", "s", handle_broad="both")
+        self.assertEqual(result, "A2")  # A*02:01 maps to A2 directly (not a split)
+        
+        # Test antigen that has no broad/split relationship - should show just the antigen
+        result = self.converter.convert("A*01:01", "s", handle_broad="both")
+        self.assertEqual(result, "A1")  # A1 has no broad/split relationship
+        
+        # Test with auto-detect
+        result = self.converter.convert("A*02:03", handle_broad="both")
+        self.assertEqual(result, "A2 (A203)")
+    
+    def test_handle_broad_parameter_validation(self):
+        """Test that handle_broad parameter is properly validated."""
+        # Test valid values
+        self.converter.convert("A*01:01", "s", handle_broad="split")
+        self.converter.convert("A*01:01", "s", handle_broad="broad") 
+        self.converter.convert("A*01:01", "s", handle_broad="both")
+        
+        # Test invalid value
+        with self.assertRaises(ValueError) as cm:
+            self.converter.convert("A*01:01", "s", handle_broad="invalid")
+        self.assertIn("Invalid handle_broad value", str(cm.exception))
+        self.assertIn("Use 'split', 'broad', or 'both'", str(cm.exception))
+    
+    def test_handle_broad_comprehensive_examples(self):
+        """Test handle_broad with comprehensive examples across different loci."""
+        test_cases = [
+            # A locus - A2 has splits A203, A210
+            ("A*02:03", "split", "A203"),
+            ("A*02:03", "broad", "A2"),
+            ("A*02:03", "both", "A2 (A203)"),
+            ("A*02:10", "split", "A210"),
+            ("A*02:10", "broad", "A2"),
+            ("A*02:10", "both", "A2 (A210)"),
+            # B locus - test a few cases
+            ("B*15:01", "split", "B62"),  # B15 split
+            ("B*15:01", "broad", "B15"),
+            ("B*15:01", "both", "B15 (B62)"),
+        ]
+        
+        for molecular, handle_broad, expected in test_cases:
+            with self.subTest(molecular=molecular, handle_broad=handle_broad, expected=expected):
+                result = self.converter.convert(molecular, "s", handle_broad=handle_broad)
+                self.assertEqual(result, expected, 
+                    f"Expected {molecular} with handle_broad={handle_broad} -> {expected}, got {result}")
+    
+    def test_convenience_function_handle_broad(self):
+        """Test the convenience convert function with handle_broad parameter."""
+        # Test the convenience function supports the new parameter
+        result = convert("A*02:03", 3610, "s", self.test_data_dir, handle_broad="both")
+        self.assertEqual(result, "A2 (A203)")
+        
+        result = convert("A*02:03", 3610, "s", self.test_data_dir, handle_broad="broad")
+        self.assertEqual(result, "A2")
+        
+        result = convert("A*02:03", 3610, "s", self.test_data_dir, handle_broad="split")
+        self.assertEqual(result, "A203")
 
 
 if __name__ == '__main__':
