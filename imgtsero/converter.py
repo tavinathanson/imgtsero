@@ -1,8 +1,8 @@
 """HLA format conversion functionality."""
 
 import re
-from typing import Union, List, Optional
 from .parser import HLAParser
+from .kir_ligand import KIRLigandClassifier
 
 
 class HLAConversionError(Exception):
@@ -13,11 +13,14 @@ class HLAConversionError(Exception):
 class HLAConverter:
     """Bidirectional HLA format converter."""
     
-    def __init__(self, version: int, data_dir="data"):
+    def __init__(self, version, data_dir="data", enable_kir=False):
         self.parser = HLAParser(version, data_dir)
+        self.kir_classifier = None
+        if enable_kir:
+            # KIRLigandClassifier handles version format conversion internally
+            self.kir_classifier = KIRLigandClassifier(version, data_dir)
     
-    def convert(self, hla_type: str, target_format: Optional[str] = None, 
-                expand_splits: bool = False, handle_broad: str = "split") -> Union[str, List[str]]:
+    def convert(self, hla_type, target_format=None, expand_splits=False, handle_broad="split"):
         """
         Convert HLA typing between serological and molecular formats.
         
@@ -52,7 +55,7 @@ class HLAConverter:
         else:
             raise ValueError(f"Unsupported target format: {target_format}. Use 's' for serological, 'm' for molecular, or None for auto-detect.")
     
-    def _to_2field(self, molecular_allele: str) -> str:
+    def _to_2field(self, molecular_allele):
         """Convert molecular allele to 2-field format (e.g., A*01:01:01:01 -> A*01:01)."""
         if '*' in molecular_allele and ':' in molecular_allele:
             parts = molecular_allele.split(':')
@@ -62,7 +65,7 @@ class HLAConverter:
         # If it's not a molecular allele or doesn't have enough fields, return as-is
         return molecular_allele
     
-    def _to_serology(self, hla_type: str, handle_broad: str = "split") -> str:
+    def _to_serology(self, hla_type, handle_broad="split"):
         """Convert molecular allele to serological equivalent."""
         if '*' in hla_type:
             # Validate that this is a real molecular allele first
@@ -91,7 +94,7 @@ class HLAConverter:
         # Invalid format
         raise HLAConversionError(f"Invalid HLA format: {hla_type}")
     
-    def _format_serological_result(self, sero: str, handle_broad: str) -> str:
+    def _format_serological_result(self, sero, handle_broad):
         """Format serological result based on handle_broad setting."""
         if handle_broad == "split":
             return sero
@@ -109,7 +112,7 @@ class HLAConverter:
         else:
             return sero    
     
-    def _to_molecular(self, hla_type: str, expand_splits: bool = False) -> List[str]:
+    def _to_molecular(self, hla_type, expand_splits=False):
         """Convert serological to molecular alleles (2-field format)."""
         if self._is_serological(hla_type):
             # Validate serological allele
@@ -131,13 +134,13 @@ class HLAConverter:
         # Invalid format
         raise HLAConversionError(f"Invalid HLA format: {hla_type}")
     
-    def _is_serological(self, hla_type: str) -> bool:
+    def _is_serological(self, hla_type):
         """Check if HLA type is in serological format."""
         # Serological types typically don't contain '*' and may contain numbers
         # Handle standard format (A1, B27) and C locus format (Cw14)
         return '*' not in hla_type and (re.match(r'^[A-Z]+\d+$', hla_type) or re.match(r'^Cw\d+$', hla_type))
     
-    def _is_valid_molecular_allele(self, hla_type: str) -> bool:
+    def _is_valid_molecular_allele(self, hla_type):
         """Check if molecular allele exists in the database."""
         if not '*' in hla_type:
             return False
@@ -163,16 +166,57 @@ class HLAConverter:
         
         return False
     
-    def _is_valid_serological_allele(self, hla_type: str) -> bool:
+    def _is_valid_serological_allele(self, hla_type):
         """Check if serological allele is known."""
         # Ensure data is loaded
         self.parser._load_data()
         # Check if it's in our serological mapping
         return hla_type in self.parser._serological_mapping
+    
+    def classify_kir_ligand(self, hla_type, bead_annotation=None):
+        """Classify HLA type for KIR ligand properties.
+        
+        Args:
+            hla_type: HLA type (molecular or serological)
+            bead_annotation: Optional bead annotation (e.g., "Bw6" from "B7,Bw6")
+            
+        Returns:
+            Dictionary with KIR ligand classification results
+        """
+        if not self.kir_classifier:
+            raise RuntimeError("KIR ligand classification not enabled. Initialize with enable_kir=True")
+        
+        # Ensure KIR data is loaded
+        self.kir_classifier.load_data()
+        
+        # If molecular allele, classify directly
+        if '*' in hla_type:
+            return self.kir_classifier.classify_allele(hla_type, bead_annotation)
+        
+        # If serological, get molecular alleles and classify
+        if self._is_serological(hla_type):
+            try:
+                molecular_alleles = self._to_molecular(hla_type)
+                return self.kir_classifier.classify_serological(hla_type, molecular_alleles, bead_annotation)
+            except HLAConversionError:
+                # If conversion fails, return empty result
+                return {
+                    "is_kir_ligand": False,
+                    "kir_ligand_type": None,
+                    "kir_receptors": [],
+                    "source": None
+                }
+        
+        # Invalid format
+        return {
+            "is_kir_ligand": False,
+            "kir_ligand_type": None,
+            "kir_receptors": [],
+            "source": None
+        }
 
 
-def convert(hla_type: str, version: int, target_format: Optional[str] = None, data_dir: str = "data",
-            expand_splits: bool = False, handle_broad: str = "split") -> Union[str, List[str]]:
+def convert(hla_type, version, target_format=None, data_dir="data", expand_splits=False, handle_broad="split"):
     """
     Convenience function for HLA conversion.
     

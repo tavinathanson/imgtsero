@@ -17,6 +17,7 @@ A Python library for downloading and working with IMGT/HLA data files from the o
 - Full support for DR and DQ loci serological nomenclature
 - Broad/split antigen relationship handling
 - 99.4% compatibility with laboratory bead mapping files (160/161 non-DP mappings)
+- KIR ligand classification for HLA alleles using IPD-IMGT/HLA API data
 
 ## Installation
 
@@ -125,6 +126,85 @@ except imgtsero.HLAConversionError as e:
     print(f"Error: {e}")  # "Unrecognized molecular allele: A*99:99"
 ```
 
+### KIR Ligand Classification
+
+The library can classify HLA alleles as KIR (Killer-cell Immunoglobulin-like Receptor) ligands using data from the IPD-IMGT/HLA API.
+
+#### KIR Ligand Biology
+
+- **HLA-B**: All alleles have either Bw4 or Bw6 epitope
+  - Bw4 is a KIR ligand (binds KIR3DL1)
+  - Bw6 is NOT a KIR ligand
+- **HLA-C**: All alleles are either C1 or C2 group
+  - C1 binds KIR2DL2/2DL3
+  - C2 binds KIR2DL1
+  - Both are KIR ligands
+- **HLA-A**: Most are not KIR ligands, except some with Bw4 (A*23, A*24, A*32)
+
+#### Basic Usage
+
+```python
+from imgtsero import HLAConverter
+
+# Initialize with KIR classification enabled
+# Version can be either format: 3610 or "3.61.0"
+converter = HLAConverter(version=3610, enable_kir=True)
+
+# Classify a molecular allele
+result = converter.classify_kir_ligand("B*27:05:02")
+print(result)
+# {
+#     "is_kir_ligand": True,
+#     "kir_ligand_type": "Bw4",
+#     "kir_receptors": ["KIR3DL1"],
+#     "source": "api"
+# }
+
+# Classify a serological antigen
+result = converter.classify_kir_ligand("Cw7")
+# Returns: {"is_kir_ligand": True, "kir_ligand_type": "C2", ...}
+
+# Parse and validate SAB bead annotations
+from imgtsero import KIRLigandClassifier
+
+bead_name = "B27,Bw4"
+hla_antigen, kir_annotation = KIRLigandClassifier.parse_bead_annotation(bead_name)
+# Returns: ("B27", "Bw4")
+
+# Classify with validation - raises ValueError if annotation conflicts with API
+try:
+    result = converter.classify_kir_ligand(hla_antigen, bead_annotation=kir_annotation)
+except ValueError as e:
+    print(f"Data conflict: {e}")
+```
+
+#### Direct KIR Classifier Usage
+
+```python
+from imgtsero import KIRLigandClassifier
+
+# Initialize classifier (handles version format conversion)
+classifier = KIRLigandClassifier(version=3610)  # or "3.61.0"
+classifier.load_data()
+
+# Get all alleles grouped by KIR ligand type
+kir_groups = classifier.get_all_kir_ligands()
+# Returns: {
+#     "Bw4": ["B*27:05", "B*44:02", "A*23:01", ...],
+#     "Bw6": ["B*07:02", "B*08:01", ...],
+#     "C1": ["C*01:02", "C*03:03", ...],
+#     "C2": ["C*02:02", "C*04:01", ...]
+# }
+```
+
+#### Implementation Details
+
+- **Data Source**: IPD-IMGT/HLA API provides official KIR ligand assignments
+- **Caching**: Data is cached locally after first retrieval for performance
+- **Validation**: SAB bead annotations (e.g., "Bw4", "Bw6") are used only for validation against API data
+- **Error Handling**: Raises ValueError if bead annotation conflicts with API data
+- **Version Support**: Handles both 3610 and "3.61.0" version formats
+
 ## Project Structure
 
 ```
@@ -134,11 +214,13 @@ imgtsero/
 │   ├── __main__.py          # CLI entry point
 │   ├── downloader.py        # Data download functionality
 │   ├── parser.py            # HLA data parsing
-│   └── converter.py         # HLA format conversion
+│   ├── converter.py         # HLA format conversion
+│   └── kir_ligand.py        # KIR ligand classification
 ├── tests/
 │   ├── test_downloader.py
 │   ├── test_parser.py
-│   └── test_converter.py
+│   ├── test_converter.py
+│   └── test_kir_ligand.py
 ├── README.md
 ├── setup.py
 └── requirements.txt
