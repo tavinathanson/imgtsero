@@ -7,7 +7,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="imgtsero",
-    version="0.4.0",
+    version="0.4.1",
     author="Tavi Nathanson",
     description="A Python library for downloading and working with IMGT/HLA data files",
     long_description=long_description,
