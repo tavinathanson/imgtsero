@@ -105,7 +105,7 @@ dmypy.json
 
 # Project-specific ignores
 # Downloaded IMGT/HLA WMDA data files (these can be large and are regenerated)
-data/
+/data/
 rel_dna_ser.*.txt
 rel_ser_ser.*.txt
 *.zip
