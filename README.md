@@ -254,43 +254,28 @@ python3 -m unittest tests.test_parser -v
 
 To create a new release version:
 
-1. **Update version numbers** in all relevant files:
+1. **Run the version bump script**:
    ```bash
-   # Update version in imgtsero/__init__.py
-   __version__ = "0.4.0"
+   # Bump version (updates all files, commits, and tags)
+   ./bump_version.py 0.4.1
    
-   # Update version in pyproject.toml
-   version = "0.4.0"
+   # Or with a custom tag message
+   ./bump_version.py 0.4.1 -m "Release v{version}: Add new feature"
    
-   # Update version in setup.py
-   version="0.4.0"
+   # Or update files only (no git operations)
+   ./bump_version.py 0.4.1 --no-git
    ```
 
-2. **Commit the version changes**:
+2. **Push to GitHub**:
    ```bash
-   git add imgtsero/__init__.py pyproject.toml setup.py
-   git commit -m "Bump version to 0.4.0"
+   git push origin main
+   git push origin v0.4.1
    ```
 
-3. **Create and push a git tag**:
+3. **Verify the release**:
    ```bash
-   # Create an annotated tag
-   git tag -a v0.4.0 -m "Release v0.4.0: Add handle_broad parameter for flexible broad/split display formatting"
-   
-   # Push the tag to origin
-   git push origin v0.4.0
-   
-   # Or push all tags
-   git push --tags
-   ```
-
-4. **Verify the release**:
-   ```bash
-   # Check that the tag was created
-   git tag -l
-   
    # Install from the specific tag to test
-   pip install git+https://github.com/tavinathanson/imgtsero.git@v0.4.0
+   pip install git+https://github.com/tavinathanson/imgtsero.git@v0.4.1
    ```
 
 ### Installation from Specific Versions
