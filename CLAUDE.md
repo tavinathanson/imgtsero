@@ -2,27 +2,33 @@
 
 ## Testing
 
-This project uses nix-shell for testing. Always run tests using:
+This project has a flake.nix file. Always use `nix develop` for testing:
 
 ```bash
-nix-shell -p python3 python3Packages.pytest --run "python -m pytest [test_file_or_directory] -v"
+# First, enter the development shell
+nix develop
+
+# Then run tests normally
+pytest tests/ -v
 ```
 
-Examples:
+Examples in nix develop shell:
 ```bash
 # Run all tests
-nix-shell -p python3 python3Packages.pytest --run "python -m pytest tests/ -v"
+pytest tests/ -v
 
 # Run specific test file
-nix-shell -p python3 python3Packages.pytest --run "python -m pytest tests/test_kir_ligand.py -v"
+pytest tests/test_kir_ligand.py -v
 
 # Run specific test class
-nix-shell -p python3 python3Packages.pytest --run "python -m pytest tests/test_kir_ligand.py::TestKIRLigandCompression -v"
+pytest tests/test_kir_ligand.py::TestKIRLigandCompression -v
 
 # Run specific test
-nix-shell -p python3 python3Packages.pytest --run "python -m pytest tests/test_kir_ligand.py::TestKIRLigandCompression::test_compression_adds_four_digit_forms -v"
+pytest tests/test_kir_ligand.py::TestKIRLigandCompression::test_compression_adds_four_digit_forms -v
 ```
 
 ## Development Environment
 
-Do NOT use plain `python` or `pytest` commands - always use nix-shell as shown above.
+- This project uses `nix develop` which automatically creates and activates a .venv
+- The flake.nix ensures consistent Python environment and installs requirements.txt
+- Do NOT use plain `nix-shell` - use `nix develop` instead

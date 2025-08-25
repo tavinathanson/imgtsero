@@ -235,7 +235,21 @@ imgtsero/
 
 ## Testing
 
-### Using nix-shell (recommended)
+### Using nix develop (recommended if you have flake.nix)
+
+```bash
+# Enter the development shell (will create/activate .venv automatically)
+nix develop
+
+# Then run tests
+pytest tests/ -v
+
+# Or run specific tests
+pytest tests/test_kir_ligand.py -v
+pytest tests/test_kir_ligand.py::TestKIRLigandCompression -v
+```
+
+### Using nix-shell (without flake)
 
 ```bash
 # Run all tests
@@ -243,9 +257,6 @@ nix-shell -p python3 python3Packages.pytest --run "python -m pytest tests/ -v"
 
 # Run specific test file
 nix-shell -p python3 python3Packages.pytest --run "python -m pytest tests/test_kir_ligand.py -v"
-
-# Run specific test class
-nix-shell -p python3 python3Packages.pytest --run "python -m pytest tests/test_kir_ligand.py::TestKIRLigandCompression -v"
 ```
 
 ### Using local environment
