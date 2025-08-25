@@ -94,10 +94,21 @@ class TestKIRLigandClassifier(unittest.TestCase):
         # Fetch data
         result = self.classifier._fetch_kir_data_from_api()
         
-        # Verify results
-        self.assertEqual(len(result), len(self.sample_data))
+        # Verify results - after compression, we'll have more entries
+        # Check that all original data is present
         for allele, expected_kir in self.sample_data.items():
             self.assertEqual(result.get(allele), expected_kir)
+        
+        # Check that 4-digit forms were added for consistent alleles
+        # B*27:05 should be added from B*27:05:02
+        self.assertIn("B*27:05", result)
+        self.assertEqual(result["B*27:05"], "Bw4")
+        
+        # A*23 and A*24 should be added (2-digit A forms)
+        self.assertIn("A*23", result)
+        self.assertEqual(result["A*23"], "Bw4")
+        self.assertIn("A*24", result)
+        self.assertEqual(result["A*24"], "Bw4")
     
     @patch('urllib.request.urlopen')
     def test_fetch_kir_data_no_results(self, mock_urlopen):
@@ -576,6 +587,195 @@ class TestKIRLigandRealFunctionality(unittest.TestCase):
         self.assertGreater(len(grouped["Bw6"]), 5)
         self.assertGreater(len(grouped["C1"]), 1)
         self.assertGreater(len(grouped["C2"]), 1)
+
+
+class TestKIRLigandHighResolutionIssue(unittest.TestCase):
+    """Test case to demonstrate the issue with B27*05 not returning Bw4."""
+    
+    def setUp(self):
+        """Set up test environment."""
+        self.temp_dir = tempfile.mkdtemp()
+        self.classifier = KIRLigandClassifier("3.61.0", self.temp_dir)
+        
+        # Simulate API data that only has high-resolution alleles, not 4-digit ones
+        # This mimics the real issue where B*27:05 is missing but B*27:05:09 exists
+        test_data = {
+            # High resolution B*27 alleles with Bw4
+            "B*27:05:02": "Bw4",
+            "B*27:05:09": "Bw4",
+            "B*27:05:18": "Bw4",
+            "B*27:05:02:01": "Bw4",
+            # Note: B*27:05 is missing!
+            
+            # Other alleles for comparison
+            "B*07:02": "Bw6",
+            "B*07:02:01": "Bw6",
+        }
+        
+        # Save test data to cache
+        cache_file = os.path.join(self.temp_dir, "kir_ligand_3.61.0.json")
+        with open(cache_file, 'w') as f:
+            json.dump(test_data, f)
+    
+    def tearDown(self):
+        """Clean up test environment."""
+        import shutil
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+    
+    def test_b27_05_lookup_fails_without_compression(self):
+        """Test that B*27:05 lookup fails when only higher resolution data exists."""
+        self.classifier.load_data()
+        
+        # This should fail because B*27:05 is not in the data
+        result = self.classifier.get_kir_ligand("B*27:05")
+        self.assertIsNone(result, "B*27:05 should not be found without compression")
+        
+        # But higher resolution lookups work
+        result = self.classifier.get_kir_ligand("B*27:05:02")
+        self.assertEqual(result, "Bw4")
+        
+        result = self.classifier.get_kir_ligand("B*27:05:09")
+        self.assertEqual(result, "Bw4")
+    
+    def test_progressive_resolution_doesnt_help_for_missing_4digit(self):
+        """Test that progressive resolution doesn't help when looking up 4-digit alleles."""
+        self.classifier.load_data()
+        
+        # Looking up B*27:05:99 (doesn't exist) won't find B*27:05 because B*27:05 isn't in the data
+        result = self.classifier.get_kir_ligand("B*27:05:99")
+        self.assertIsNone(result, "Progressive resolution can't find B*27:05 if it's not in the data")
+
+
+class TestKIRLigandCompression(unittest.TestCase):
+    """Test the compression functionality for KIR ligand data."""
+    
+    def setUp(self):
+        """Set up test environment."""
+        self.temp_dir = tempfile.mkdtemp()
+        self.classifier = KIRLigandClassifier("3.61.0", self.temp_dir)
+    
+    def tearDown(self):
+        """Clean up test environment."""
+        import shutil
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+    
+    def test_compression_adds_four_digit_forms(self):
+        """Test that compression adds 4-digit forms when consistent."""
+        # Test data with only high-resolution alleles
+        test_data = {
+            "B*27:05:02": "Bw4",
+            "B*27:05:09": "Bw4",
+            "B*27:05:18": "Bw4",
+            "B*07:02:01": "Bw6",
+            "B*07:02:01:01": "Bw6",
+            "C*01:02:01": "C1",
+            "C*01:02:29": "C1",
+        }
+        
+        # Apply compression
+        compressed = self.classifier._compress_to_four_digit(test_data)
+        
+        # Check that 4-digit forms were added
+        self.assertIn("B*27:05", compressed)
+        self.assertEqual(compressed["B*27:05"], "Bw4")
+        
+        self.assertIn("B*07:02", compressed)
+        self.assertEqual(compressed["B*07:02"], "Bw6")
+        
+        self.assertIn("C*01:02", compressed)
+        self.assertEqual(compressed["C*01:02"], "C1")
+        
+        # Original alleles should still be present
+        self.assertIn("B*27:05:02", compressed)
+        self.assertIn("B*07:02:01", compressed)
+    
+    def test_compression_detects_inconsistencies(self):
+        """Test that compression detects and reports inconsistencies."""
+        # Test data with conflicting KIR ligand types for same 4-digit allele
+        test_data = {
+            "B*27:05:02": "Bw4",
+            "B*27:05:09": "Bw6",  # Conflict!
+            "B*07:02:01": "Bw6",
+        }
+        
+        # Should raise ValueError for inconsistency
+        with self.assertRaises(ValueError) as cm:
+            self.classifier._compress_to_four_digit(test_data)
+        
+        error_msg = str(cm.exception)
+        self.assertIn("Inconsistent KIR ligand types", error_msg)
+        self.assertIn("B*27:05", error_msg)
+        self.assertIn("B*27:05:02: Bw4", error_msg)
+        self.assertIn("B*27:05:09: Bw6", error_msg)
+    
+    def test_compression_handles_null_values(self):
+        """Test that compression correctly handles null KIR ligand values."""
+        test_data = {
+            "A*01:01:01:01": None,
+            "A*01:01:01:02": None,
+            "B*27:05:02": "Bw4",
+            "B*27:05:09": "Bw4",
+        }
+        
+        compressed = self.classifier._compress_to_four_digit(test_data)
+        
+        # B*27:05 should be added
+        self.assertIn("B*27:05", compressed)
+        self.assertEqual(compressed["B*27:05"], "Bw4")
+        
+        # A*01:01 should NOT be added (null values are skipped)
+        self.assertNotIn("A*01:01", compressed)
+        
+        # Original null entries should still be present
+        self.assertIn("A*01:01:01:01", compressed)
+        self.assertIsNone(compressed["A*01:01:01:01"])
+    
+    def test_compression_handles_a_locus_two_digit(self):
+        """Test that compression adds 2-digit forms for A locus alleles."""
+        test_data = {
+            "A*23:01:01": "Bw4",
+            "A*23:01:01:01": "Bw4",
+            "A*24:02:01:01": "Bw4",
+            "A*24:02:01:02": "Bw4",
+        }
+        
+        compressed = self.classifier._compress_to_four_digit(test_data)
+        
+        # Check that 2-digit A forms were added
+        self.assertIn("A*23", compressed)
+        self.assertEqual(compressed["A*23"], "Bw4")
+        
+        self.assertIn("A*24", compressed)
+        self.assertEqual(compressed["A*24"], "Bw4")
+    
+    @patch('urllib.request.urlopen')
+    def test_fetch_with_compression_integration(self, mock_urlopen):
+        """Test that fetch API integrates compression correctly."""
+        # Mock API response with only high-resolution alleles
+        api_response = {
+            "data": [
+                {"name": "B*27:05:02", "matching.kir_ligand": "Bw4"},
+                {"name": "B*27:05:09", "matching.kir_ligand": "Bw4"},
+                {"name": "B*27:05:18", "matching.kir_ligand": "Bw4"},
+                {"name": "B*07:02:01", "matching.kir_ligand": "Bw6"},
+                {"name": "B*07:02:01:01", "matching.kir_ligand": "Bw6"},
+            ]
+        }
+        
+        mock_response = MagicMock()
+        mock_response.read.return_value = json.dumps(api_response).encode('utf-8')
+        mock_urlopen.return_value.__enter__.return_value = mock_response
+        
+        # Load data (which should fetch and compress)
+        self.classifier.load_data(force_download=True)
+        
+        # Now B*27:05 should be found!
+        result = self.classifier.get_kir_ligand("B*27:05")
+        self.assertEqual(result, "Bw4", "B*27:05 should be found after compression")
+        
+        # And B*07:02 too
+        result = self.classifier.get_kir_ligand("B*07:02")
+        self.assertEqual(result, "Bw6", "B*07:02 should be found after compression")
 
 
 if __name__ == '__main__':

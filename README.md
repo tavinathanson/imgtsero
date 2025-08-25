@@ -200,9 +200,11 @@ kir_groups = classifier.get_all_kir_ligands()
 #### Implementation Details
 
 - **Data Source**: IPD-IMGT/HLA API provides official KIR ligand assignments
+- **Automatic 4-digit compression**: When the API returns only high-resolution alleles (e.g., B*27:05:02, B*27:05:09), the system automatically creates 4-digit entries (e.g., B*27:05) if all high-resolution variants have consistent KIR ligand types
+- **Consistency validation**: If high-resolution alleles of the same 4-digit type have conflicting KIR ligand assignments, a ValueError is raised with detailed information about the conflicts
 - **Caching**: Data is cached locally after first retrieval for performance
 - **Validation**: SAB bead annotations (e.g., "Bw4", "Bw6") are used only for validation against API data
-- **Error Handling**: Raises ValueError if bead annotation conflicts with API data
+- **Error Handling**: Raises ValueError if bead annotation conflicts with API data or if inconsistent KIR ligand types are found during compression
 - **Version Support**: Handles both 3610 and "3.61.0" version formats
 
 ## Project Structure
@@ -232,6 +234,21 @@ imgtsero/
 - No external dependencies (uses only Python standard library)
 
 ## Testing
+
+### Using nix-shell (recommended)
+
+```bash
+# Run all tests
+nix-shell -p python3 python3Packages.pytest --run "python -m pytest tests/ -v"
+
+# Run specific test file
+nix-shell -p python3 python3Packages.pytest --run "python -m pytest tests/test_kir_ligand.py -v"
+
+# Run specific test class
+nix-shell -p python3 python3Packages.pytest --run "python -m pytest tests/test_kir_ligand.py::TestKIRLigandCompression -v"
+```
+
+### Using local environment
 
 ```bash
 python -m pytest tests/

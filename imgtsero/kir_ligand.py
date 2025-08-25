@@ -67,6 +67,81 @@ class KIRLigandClassifier:
         # Return as-is if we can't parse it
         return version_str
     
+    def _compress_to_four_digit(self, kir_map):
+        """Compress alleles to 4-digit resolution and check consistency.
+        
+        Args:
+            kir_map: Dictionary mapping allele names to KIR ligand types
+            
+        Returns:
+            Dictionary with original alleles plus compressed 4-digit forms
+            
+        Raises:
+            ValueError: If inconsistent KIR ligand types found for same 4-digit allele
+        """
+        compressed_map = {}
+        four_digit_groups = defaultdict(set)
+        
+        # Group alleles by their 4-digit form
+        for allele, kir_ligand in kir_map.items():
+            # Skip if no KIR ligand data
+            if kir_ligand is None:
+                continue
+                
+            # Extract 4-digit form (first two fields)
+            parts = allele.split(':')
+            if len(parts) >= 2:
+                four_digit = f"{parts[0]}:{parts[1]}"
+                four_digit_groups[four_digit].add((allele, kir_ligand))
+        
+        # Check consistency and add compressed forms
+        inconsistencies = []
+        for four_digit, allele_set in four_digit_groups.items():
+            # Get all unique KIR ligand types for this 4-digit allele
+            kir_types = {kir_ligand for _, kir_ligand in allele_set}
+            
+            if len(kir_types) == 1:
+                # Consistent - add the 4-digit form
+                compressed_map[four_digit] = kir_types.pop()
+            else:
+                # Inconsistent - collect error info
+                allele_info = [(allele, kir) for allele, kir in allele_set]
+                inconsistencies.append({
+                    'four_digit': four_digit,
+                    'conflicts': allele_info
+                })
+        
+        # Report any inconsistencies
+        if inconsistencies:
+            error_msg = "Inconsistent KIR ligand types found for the following alleles:\n"
+            for item in inconsistencies:
+                error_msg += f"\n{item['four_digit']}:\n"
+                for allele, kir in item['conflicts']:
+                    error_msg += f"  - {allele}: {kir}\n"
+            raise ValueError(error_msg)
+        
+        # Merge compressed forms with original data
+        result = kir_map.copy()
+        result.update(compressed_map)
+        
+        # Also add 2-digit forms for A locus (special case for A*23, A*24, etc.)
+        two_digit_groups = defaultdict(set)
+        for allele, kir_ligand in kir_map.items():
+            if allele.startswith("A*") and kir_ligand is not None:
+                # Extract 2-digit form for A locus
+                parts = allele.split(':')
+                if len(parts) >= 1:
+                    two_digit = parts[0]  # Just "A*23", "A*24", etc.
+                    two_digit_groups[two_digit].add((allele, kir_ligand))
+        
+        # Add consistent 2-digit A forms
+        for two_digit, allele_set in two_digit_groups.items():
+            kir_types = {kir_ligand for _, kir_ligand in allele_set}
+            if len(kir_types) == 1:
+                result[two_digit] = kir_types.pop()
+        
+        return result
+    
     def _fetch_kir_data_from_api(self):
         """Fetch KIR ligand data from IPD-IMGT/HLA API.
         
@@ -82,6 +157,9 @@ class KIRLigandClassifier:
             'limit': '100000',
             'format': 'json'
         }
+        
+        # Add A locus to query for A*23, A*24, etc.
+        params['query'] = f'and(or(eq(locus,"A*"),eq(locus,"B*"),eq(locus,"C*")), eq(release_version,"{self.version}"))'
         
         # Construct URL with encoded parameters
         query_string = urllib.parse.urlencode(params)
@@ -102,8 +180,11 @@ class KIRLigandClassifier:
                 kir_ligand = entry.get('matching.kir_ligand')
                 if allele_name:
                     kir_map[allele_name] = kir_ligand
+            
+            # Compress to 4-digit resolution and check consistency
+            compressed_map = self._compress_to_four_digit(kir_map)
                     
-            return kir_map
+            return compressed_map
             
         except urllib.error.HTTPError as e:
             if e.code == 404:
