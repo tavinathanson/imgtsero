@@ -184,6 +184,7 @@ class TestKIRLigandClassifier(unittest.TestCase):
         result = self.classifier.classify_allele("B*27:05:02")
         self.assertTrue(result["is_kir_ligand"])
         self.assertEqual(result["kir_ligand_type"], "Bw4")
+        self.assertEqual(result["kir_ligand_type_detail"], "Bw4")  # From test data
         self.assertEqual(result["kir_receptors"], ["KIR3DL1"])
         self.assertEqual(result["source"], "api")
         
@@ -191,6 +192,7 @@ class TestKIRLigandClassifier(unittest.TestCase):
         result = self.classifier.classify_allele("B*07:02:01")
         self.assertFalse(result["is_kir_ligand"])
         self.assertEqual(result["kir_ligand_type"], "Bw6")
+        self.assertEqual(result["kir_ligand_type_detail"], "Bw6")  # From test data
         self.assertEqual(result["kir_receptors"], [])
         self.assertEqual(result["source"], "api")
         

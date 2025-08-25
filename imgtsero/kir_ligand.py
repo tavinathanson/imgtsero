@@ -286,29 +286,39 @@ class KIRLigandClassifier:
             Dictionary with classification results:
                 - is_kir_ligand: Boolean indicating if it's a KIR ligand
                 - kir_ligand_type: The ligand type (Bw4, C1, C2) or None
+                - kir_ligand_type_detail: The detailed type (e.g., "Bw4 - 80T", "Bw4 - 80I")
                 - kir_receptors: List of KIR receptors that bind this ligand
                 - source: Always "api" since we use API as source of truth
         """
         # Always get classification from API data
-        kir_ligand = self.get_kir_ligand(allele_name)
+        kir_ligand_detail = self.get_kir_ligand(allele_name)
+        
+        # Extract base KIR ligand type (e.g., "Bw4" from "Bw4 - 80T")
+        kir_ligand_base = None
+        if kir_ligand_detail:
+            if kir_ligand_detail.startswith("Bw4"):
+                kir_ligand_base = "Bw4"
+            elif kir_ligand_detail in ["C1", "C2", "Bw6"]:
+                kir_ligand_base = kir_ligand_detail
         
         result = {
             "is_kir_ligand": False,
-            "kir_ligand_type": kir_ligand,
+            "kir_ligand_type": kir_ligand_base,
+            "kir_ligand_type_detail": kir_ligand_detail,
             "kir_receptors": [],
-            "source": "api" if kir_ligand else None
+            "source": "api" if kir_ligand_detail else None
         }
         
-        if kir_ligand:
-            result["is_kir_ligand"] = kir_ligand in ["Bw4", "C1", "C2"]
+        if kir_ligand_base:
+            result["is_kir_ligand"] = kir_ligand_base in ["Bw4", "C1", "C2"]
             if result["is_kir_ligand"]:
-                result["kir_receptors"] = self.kir_receptors.get(kir_ligand, [])
+                result["kir_receptors"] = self.kir_receptors.get(kir_ligand_base, [])
         
         # Validate against bead annotation if provided
         if bead_annotation and bead_annotation in ["Bw4", "Bw6"]:
-            if kir_ligand and kir_ligand != bead_annotation:
+            if kir_ligand_base and kir_ligand_base != bead_annotation:
                 raise ValueError(
-                    f"Bead annotation '{bead_annotation}' conflicts with API data '{kir_ligand}' "
+                    f"Bead annotation '{bead_annotation}' conflicts with API data '{kir_ligand_base}' "
                     f"for allele {allele_name}"
                 )
         
@@ -326,26 +336,42 @@ class KIRLigandClassifier:
             Dictionary with classification results (same format as classify_allele)
         """
         # Always check molecular alleles from API
-        kir_ligand_types = set()
+        kir_ligand_detail_types = set()
+        kir_ligand_base_types = set()
+        
         for allele in molecular_alleles:
-            kir_ligand = self.get_kir_ligand(allele)
-            if kir_ligand:
-                kir_ligand_types.add(kir_ligand)
+            kir_ligand_detail = self.get_kir_ligand(allele)
+            if kir_ligand_detail:
+                kir_ligand_detail_types.add(kir_ligand_detail)
+                # Extract base type
+                if kir_ligand_detail.startswith("Bw4"):
+                    kir_ligand_base_types.add("Bw4")
+                elif kir_ligand_detail in ["C1", "C2", "Bw6"]:
+                    kir_ligand_base_types.add(kir_ligand_detail)
         
         # Determine consensus KIR ligand type
-        if len(kir_ligand_types) == 1:
-            kir_ligand = kir_ligand_types.pop()
+        if len(kir_ligand_base_types) == 1:
+            kir_ligand_base = kir_ligand_base_types.pop()
+            # Get detailed type if consistent
+            kir_ligand_detail = None
+            if len(kir_ligand_detail_types) == 1:
+                kir_ligand_detail = kir_ligand_detail_types.pop()
+            else:
+                kir_ligand_detail = f"Mixed: {', '.join(sorted(kir_ligand_detail_types))}"
+            
             result = {
-                "is_kir_ligand": kir_ligand in ["Bw4", "C1", "C2"],
-                "kir_ligand_type": kir_ligand,
-                "kir_receptors": self.kir_receptors.get(kir_ligand, []) if kir_ligand in ["Bw4", "C1", "C2"] else [],
+                "is_kir_ligand": kir_ligand_base in ["Bw4", "C1", "C2"],
+                "kir_ligand_type": kir_ligand_base,
+                "kir_ligand_type_detail": kir_ligand_detail,
+                "kir_receptors": self.kir_receptors.get(kir_ligand_base, []) if kir_ligand_base in ["Bw4", "C1", "C2"] else [],
                 "source": "api"
             }
-        elif len(kir_ligand_types) > 1:
+        elif len(kir_ligand_base_types) > 1:
             # Mixed types - this shouldn't happen for a proper serological type
             result = {
                 "is_kir_ligand": False,
-                "kir_ligand_type": f"Mixed: {', '.join(sorted(kir_ligand_types))}",
+                "kir_ligand_type": f"Mixed: {', '.join(sorted(kir_ligand_base_types))}",
+                "kir_ligand_type_detail": f"Mixed: {', '.join(sorted(kir_ligand_detail_types))}",
                 "kir_receptors": [],
                 "source": "api"
             }
@@ -354,6 +380,7 @@ class KIRLigandClassifier:
             result = {
                 "is_kir_ligand": False,
                 "kir_ligand_type": None,
+                "kir_ligand_type_detail": None,
                 "kir_receptors": [],
                 "source": None
             }
