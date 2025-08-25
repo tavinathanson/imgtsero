@@ -5,5 +5,5 @@ from .converter import convert, HLAConversionError, HLAConverter
 from .parser import HLAParser
 from .kir_ligand import KIRLigandClassifier
 
-__version__ = "0.4.4"
+__version__ = "0.4.5"
 __all__ = ["download_data", "convert", "HLAConverter", "HLAParser", "HLAConversionError", "KIRLigandClassifier"]
