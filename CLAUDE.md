@@ -1,5 +1,11 @@
 # Claude Code Instructions for imgtsero
 
+## Data Storage
+
+All cached data (both WMDA files and KIR ligand cache) is stored in the `data_dir` parameter (default: "data"):
+- WMDA files: `rel_dna_ser.{version}.txt` and `rel_ser_ser.{version}.txt`
+- KIR ligand cache: `kir_ligand_{version}.json`
+
 ## Testing
 
 This project has a flake.nix file. Always use `nix develop` for testing:
