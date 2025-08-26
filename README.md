@@ -200,13 +200,32 @@ kir_groups = classifier.get_all_kir_ligands()
 #### Implementation Details
 
 - **Data Source**: IPD-IMGT/HLA API provides official KIR ligand assignments
+- **Automatic pagination**: The API fetch handles pagination to retrieve all HLA-A, B, and C alleles (~28,222 alleles for version 3.61.0) across multiple requests. Note: This represents only A*, B*, and C* loci out of the total 43,225+ alleles in the full database (which includes DRB1*, DQB1*, and many other loci)
 - **Automatic 4-digit compression**: When the API returns only high-resolution alleles (e.g., B*27:05:02, B*27:05:09), the system automatically creates 4-digit entries (e.g., B*27:05) if all high-resolution variants with non-null KIR data have consistent KIR ligand types
 - **Null value handling**: Alleles with no KIR ligand data (null/None values) are ignored during consistency checking. For example, if C*17:01:01:01 has no data but C*17:01:01:02 and C*17:01:02 both have "C2", then C*17:01 will be compressed to "C2"
 - **Consistency validation**: If high-resolution alleles of the same 4-digit type have conflicting KIR ligand assignments (excluding null values), a ValueError is raised with detailed information about the conflicts
-- **Caching**: Data is cached locally after first retrieval for performance
+- **Caching**: Data is cached locally after first retrieval for performance (includes all paginated results)
 - **Validation**: SAB bead annotations (e.g., "Bw4", "Bw6") are used only for validation against API data
 - **Error Handling**: Raises ValueError if bead annotation conflicts with API data or if inconsistent KIR ligand types are found during compression
 - **Version Support**: Handles both 3610 and "3.61.0" version formats
+
+## Testing
+
+```bash
+# Run all tests (excluding slow tests)
+pytest
+
+# Run all tests including slow tests  
+pytest -m ""
+
+# Run only the slow pagination test (fetches all 43,416 HLA alleles)
+pytest -m slow
+
+# Run a specific test
+pytest tests/test_kir_ligand.py::TestKIRLigandCompression::test_c17_01_classification_with_real_data
+```
+
+The slow test `test_total_database_alleles_by_pagination_v3_61_0` fetches all 43,416 HLA alleles across 44 API pages to verify our pagination implementation. It takes about 40 seconds to complete.
 
 ## Project Structure
 

@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import patch, MagicMock
 import urllib.error
+import pytest
 
 from imgtsero.kir_ligand import KIRLigandClassifier
 from imgtsero import HLAConverter
@@ -799,6 +800,151 @@ class TestKIRLigandCompression(unittest.TestCase):
         self.assertIn("B*98:01", str(context.exception))
         self.assertIn("Bw4", str(context.exception))
         self.assertIn("Bw6", str(context.exception))
+    
+    def test_c17_01_classification_with_real_data(self):
+        """Test that C*17:01 gets classified correctly with real API data."""
+        # This test uses the real cached data which should include full pagination
+        classifier = KIRLigandClassifier(version="3.61.0")
+        classifier.load_data()
+        
+        # Test C*17:01 - should be compressed to C2
+        result = classifier.get_kir_ligand("C*17:01")
+        self.assertEqual(result, "C2", "C*17:01 should be classified as C2 after compression")
+        
+        # Also verify the full classification
+        converter = HLAConverter(version=3610, enable_kir=True)
+        classification = converter.classify_kir_ligand("C*17:01")
+        self.assertTrue(classification['is_kir_ligand'])
+        self.assertEqual(classification['kir_ligand_type'], 'C2')
+        self.assertEqual(classification['source'], 'api')
+    
+    def test_api_data_completeness(self):
+        """Test that API returns expected number of alleles.
+        
+        Based on IPD-IMGT/HLA version 3.61.0 statistics:
+        - Total HLA alleles: 43,225 (all loci)
+        - Our API query fetches only A*, B*, C* loci for KIR ligand classification
+        - Expected A+B+C total from API: 28,222
+        
+        Source: https://www.ebi.ac.uk/ipd/imgt/hla/about/statistics/growth/
+        """
+        classifier = KIRLigandClassifier(version="3.61.0")
+        classifier.load_data()
+        
+        # Check total number of entries in cache
+        total_entries = len(classifier._kir_ligand_map)
+        
+        # After compression, we expect more entries than raw API count
+        # API returns 28,222 but compression adds 4-digit forms
+        self.assertGreaterEqual(total_entries, 28222, 
+            f"Expected at least 28,222 alleles from API, got {total_entries}")
+        self.assertLessEqual(total_entries, 35000,
+            f"Expected no more than 35,000 entries after compression, got {total_entries}")
+        
+        # Check specific counts for each locus
+        a_count = sum(1 for k in classifier._kir_ligand_map.keys() if k.startswith('A*'))
+        b_count = sum(1 for k in classifier._kir_ligand_map.keys() if k.startswith('B*'))
+        c_count = sum(1 for k in classifier._kir_ligand_map.keys() if k.startswith('C*'))
+        
+        # These are the exact API counts for version 3.61.0:
+        # A*: 8,746 (from API meta.total)
+        # B*: 10,628 (from API meta.total)
+        # C*: 8,848 (from API meta.total)
+        # Total A+B+C: 28,222
+        # After compression, we get additional 4-digit and 2-digit forms
+        self.assertGreaterEqual(a_count, 8746, f"Expected at least 8,746 A alleles, got {a_count}")
+        self.assertGreaterEqual(b_count, 10628, f"Expected at least 10,628 B alleles, got {b_count}")
+        self.assertGreaterEqual(c_count, 8848, f"Expected at least 8,848 C alleles, got {c_count}")
+        
+        # Verify our pagination fetched the expected total
+        # Raw A+B+C from API should be ~28,222 before compression
+        raw_total = a_count + b_count + c_count
+        self.assertGreaterEqual(raw_total, 28222,
+            f"Expected at least 28,222 A+B+C alleles total, got {raw_total}")
+        
+        # Verify we have multiple C*17:01 variants (not just C*17:01:01:01)
+        c17_01_variants = [k for k in classifier._kir_ligand_map.keys() 
+                          if k.startswith('C*17:01') and len(k.split(':')) >= 3]
+        self.assertGreaterEqual(len(c17_01_variants), 20, 
+            f"Expected multiple C*17:01 variants, got {len(c17_01_variants)}")
+    
+    @pytest.mark.slow
+    def test_total_database_alleles_by_pagination_v3_61_0(self):
+        """Test total allele count by actually paginating through ALL alleles.
+        
+        This test fetches ALL HLA alleles (not just A/B/C) and verifies:
+        1. The pagination count matches the API's meta.total field
+        2. The total is close to the official statistics (43,225 as of July 2025)
+        
+        To run this test: pytest -m slow
+        """
+        import urllib.request
+        import urllib.parse
+        import time
+        
+        version = "3.61.0"
+        base_url = "https://www.ebi.ac.uk/cgi-bin/ipd/api/allele"
+        
+        # Query for ALL alleles in this version (no locus filter)
+        params = {
+            'fields': 'name',
+            'query': f'eq(release_version,"{version}")',
+            'limit': '1000',
+            'format': 'json'
+        }
+        
+        all_alleles = set()
+        next_url = None
+        page_count = 0
+        
+        while True:
+            if next_url:
+                url = f"{base_url}{next_url}"
+            else:
+                query_string = urllib.parse.urlencode(params)
+                url = f"{base_url}?{query_string}"
+            
+            with urllib.request.urlopen(url) as response:
+                data = json.loads(response.read().decode('utf-8'))
+            
+            if data.get('data'):
+                for entry in data['data']:
+                    allele_name = entry.get('name', '')
+                    if allele_name:
+                        all_alleles.add(allele_name)
+            
+            page_count += 1
+            next_url = data.get('meta', {}).get('next')
+            if not next_url:
+                break
+            
+            time.sleep(0.05)  # Be nice to the API
+        
+        actual_count = len(all_alleles)
+        
+        # Verify reasonable range (stats page shows 43,225)
+        self.assertGreaterEqual(actual_count, 43000,
+            f"Expected at least 43,000 total alleles, got {actual_count}")
+        self.assertLessEqual(actual_count, 45000,
+            f"Expected no more than 45,000 total alleles, got {actual_count}")
+        
+        # Verify against meta.total
+        params['limit'] = '1'
+        query_string = urllib.parse.urlencode(params)
+        url = f"{base_url}?{query_string}"
+        
+        with urllib.request.urlopen(url) as response:
+            data = json.loads(response.read().decode('utf-8'))
+        
+        meta_total = data.get('meta', {}).get('total', 0)
+        
+        # Pagination count should match meta.total exactly
+        self.assertEqual(actual_count, meta_total,
+            f"Pagination count ({actual_count}) should match meta.total ({meta_total})")
+        
+        # Verify we paginated through many pages
+        self.assertGreaterEqual(page_count, 40,
+            f"Expected at least 40 pages with limit=1000, got {page_count}")
     
     @patch('urllib.request.urlopen')
     def test_fetch_with_compression_integration(self, mock_urlopen):

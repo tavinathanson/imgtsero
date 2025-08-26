@@ -144,7 +144,7 @@ class KIRLigandClassifier:
         return result
     
     def _fetch_kir_data_from_api(self):
-        """Fetch KIR ligand data from IPD-IMGT/HLA API.
+        """Fetch KIR ligand data from IPD-IMGT/HLA API with pagination support.
         
         Returns:
             Dictionary mapping allele names to KIR ligand types
@@ -154,33 +154,50 @@ class KIRLigandClassifier:
         # Build query parameters
         params = {
             'fields': 'name,locus,matching.kir_ligand,release_version',
-            'query': f'and(or(eq(locus,"B*"),eq(locus,"C*")), eq(release_version,"{self.version}"))',
-            'limit': '100000',
+            'query': f'and(or(eq(locus,"A*"),eq(locus,"B*"),eq(locus,"C*")), eq(release_version,"{self.version}"))',
+            'limit': '1000',  # API default limit
             'format': 'json'
         }
         
-        # Add A locus to query for A*23, A*24, etc.
-        params['query'] = f'and(or(eq(locus,"A*"),eq(locus,"B*"),eq(locus,"C*")), eq(release_version,"{self.version}"))'
-        
-        # Construct URL with encoded parameters
-        query_string = urllib.parse.urlencode(params)
-        url = f"{base_url}?{query_string}"
+        kir_map = {}
+        next_url = None
+        page_count = 0
         
         try:
-            # Fetch data from API
-            with urllib.request.urlopen(url) as response:
-                data = json.loads(response.read().decode('utf-8'))
+            while True:
+                # Use next URL if we have one (for pagination)
+                if next_url:
+                    url = f"{base_url}{next_url}"
+                else:
+                    # First request
+                    query_string = urllib.parse.urlencode(params)
+                    url = f"{base_url}?{query_string}"
                 
-            if not data.get('data'):
+                # Fetch data from API
+                with urllib.request.urlopen(url) as response:
+                    data = json.loads(response.read().decode('utf-8'))
+                
+                # Process this page of results
+                if data.get('data'):
+                    for entry in data['data']:
+                        allele_name = entry.get('name', '')
+                        kir_ligand = entry.get('matching.kir_ligand')
+                        if allele_name:
+                            kir_map[allele_name] = kir_ligand
+                
+                page_count += 1
+                if page_count % 5 == 0:
+                    print(f"  Fetched {len(kir_map)} alleles so far...")
+                
+                # Check if there's a next page
+                next_url = data.get('meta', {}).get('next')
+                if not next_url:
+                    break
+                    
+            if not kir_map:
                 raise RuntimeError(f"No KIR ligand data found for version {self.version}")
             
-            # Process API response
-            kir_map = {}
-            for entry in data['data']:
-                allele_name = entry.get('name', '')
-                kir_ligand = entry.get('matching.kir_ligand')
-                if allele_name:
-                    kir_map[allele_name] = kir_ligand
+            print(f"  Total alleles fetched: {len(kir_map)} from {page_count} pages")
             
             # Compress to 4-digit resolution and check consistency
             compressed_map = self._compress_to_four_digit(kir_map)
