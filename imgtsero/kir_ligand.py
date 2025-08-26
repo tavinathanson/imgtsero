@@ -80,32 +80,32 @@ class KIRLigandClassifier:
             ValueError: If inconsistent KIR ligand types found for same 4-digit allele
         """
         compressed_map = {}
-        four_digit_groups = defaultdict(set)
+        four_digit_groups = defaultdict(list)
         
         # Group alleles by their 4-digit form
         for allele, kir_ligand in kir_map.items():
-            # Skip if no KIR ligand data
-            if kir_ligand is None:
-                continue
-                
             # Extract 4-digit form (first two fields)
             parts = allele.split(':')
             if len(parts) >= 2:
                 four_digit = f"{parts[0]}:{parts[1]}"
-                four_digit_groups[four_digit].add((allele, kir_ligand))
+                four_digit_groups[four_digit].append((allele, kir_ligand))
         
         # Check consistency and add compressed forms
         inconsistencies = []
-        for four_digit, allele_set in four_digit_groups.items():
-            # Get all unique KIR ligand types for this 4-digit allele
-            kir_types = {kir_ligand for _, kir_ligand in allele_set}
+        for four_digit, allele_list in four_digit_groups.items():
+            # Get all KIR ligand types, filtering out None values
+            all_kir_types = {kir_ligand for _, kir_ligand in allele_list}
+            non_none_kir_types = {kir for kir in all_kir_types if kir is not None}
             
-            if len(kir_types) == 1:
-                # Consistent - add the 4-digit form
-                compressed_map[four_digit] = kir_types.pop()
+            if len(non_none_kir_types) == 0:
+                # All alleles have None - don't add compressed form
+                continue
+            elif len(non_none_kir_types) == 1:
+                # Consistent among non-None alleles - add the 4-digit form
+                compressed_map[four_digit] = non_none_kir_types.pop()
             else:
                 # Inconsistent - collect error info
-                allele_info = [(allele, kir) for allele, kir in allele_set]
+                allele_info = [(allele, kir) for allele, kir in allele_list if kir is not None]
                 inconsistencies.append({
                     'four_digit': four_digit,
                     'conflicts': allele_info
@@ -125,18 +125,19 @@ class KIRLigandClassifier:
         result.update(compressed_map)
         
         # Also add 2-digit forms for A locus (special case for A*23, A*24, etc.)
-        two_digit_groups = defaultdict(set)
+        two_digit_groups = defaultdict(list)
         for allele, kir_ligand in kir_map.items():
-            if allele.startswith("A*") and kir_ligand is not None:
+            if allele.startswith("A*"):
                 # Extract 2-digit form for A locus
                 parts = allele.split(':')
                 if len(parts) >= 1:
                     two_digit = parts[0]  # Just "A*23", "A*24", etc.
-                    two_digit_groups[two_digit].add((allele, kir_ligand))
+                    two_digit_groups[two_digit].append((allele, kir_ligand))
         
         # Add consistent 2-digit A forms
-        for two_digit, allele_set in two_digit_groups.items():
-            kir_types = {kir_ligand for _, kir_ligand in allele_set}
+        for two_digit, allele_list in two_digit_groups.items():
+            # Only consider non-None KIR types
+            kir_types = {kir for _, kir in allele_list if kir is not None}
             if len(kir_types) == 1:
                 result[two_digit] = kir_types.pop()
         

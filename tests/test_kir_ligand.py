@@ -750,6 +750,56 @@ class TestKIRLigandCompression(unittest.TestCase):
         self.assertIn("A*24", compressed)
         self.assertEqual(compressed["A*24"], "Bw4")
     
+    def test_compression_skips_none_values(self):
+        """Test that compression ignores None values when checking consistency."""
+        test_data = {
+            # C*17:01 family - one None, others C2
+            "C*17:01:01:01": None,  # No KIR data
+            "C*17:01:01:02": "C2",
+            "C*17:01:02": "C2",
+            "C*17:01:03": "C2",
+            # B*44:02 family - all have data
+            "B*44:02:01:01": "Bw4 - 80T",
+            "B*44:02:01:02": "Bw4 - 80T",
+            # C*99:01 family - all None
+            "C*99:01:01": None,
+            "C*99:01:02": None,
+        }
+        
+        compressed = self.classifier._compress_to_four_digit(test_data)
+        
+        # C*17:01 should be compressed to C2 (ignoring the None)
+        self.assertIn("C*17:01", compressed)
+        self.assertEqual(compressed["C*17:01"], "C2")
+        
+        # B*44:02 should be compressed normally
+        self.assertIn("B*44:02", compressed)
+        self.assertEqual(compressed["B*44:02"], "Bw4 - 80T")
+        
+        # C*99:01 should NOT be compressed (all None)
+        self.assertNotIn("C*99:01", compressed)
+        
+        # Original entries should still be present
+        self.assertIn("C*17:01:01:01", compressed)
+        self.assertIsNone(compressed["C*17:01:01:01"])
+    
+    def test_compression_mixed_none_inconsistent(self):
+        """Test compression with mixed None values and inconsistent non-None values."""
+        test_data = {
+            # Mixed with inconsistency
+            "B*98:01:01": None,
+            "B*98:01:02": "Bw4",
+            "B*98:01:03": "Bw6",  # Inconsistent!
+        }
+        
+        # Should raise error for inconsistent non-None values
+        with self.assertRaises(ValueError) as context:
+            self.classifier._compress_to_four_digit(test_data)
+        
+        self.assertIn("B*98:01", str(context.exception))
+        self.assertIn("Bw4", str(context.exception))
+        self.assertIn("Bw6", str(context.exception))
+    
     @patch('urllib.request.urlopen')
     def test_fetch_with_compression_integration(self, mock_urlopen):
         """Test that fetch API integrates compression correctly."""

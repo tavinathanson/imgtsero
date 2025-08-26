@@ -200,8 +200,9 @@ kir_groups = classifier.get_all_kir_ligands()
 #### Implementation Details
 
 - **Data Source**: IPD-IMGT/HLA API provides official KIR ligand assignments
-- **Automatic 4-digit compression**: When the API returns only high-resolution alleles (e.g., B*27:05:02, B*27:05:09), the system automatically creates 4-digit entries (e.g., B*27:05) if all high-resolution variants have consistent KIR ligand types
-- **Consistency validation**: If high-resolution alleles of the same 4-digit type have conflicting KIR ligand assignments, a ValueError is raised with detailed information about the conflicts
+- **Automatic 4-digit compression**: When the API returns only high-resolution alleles (e.g., B*27:05:02, B*27:05:09), the system automatically creates 4-digit entries (e.g., B*27:05) if all high-resolution variants with non-null KIR data have consistent KIR ligand types
+- **Null value handling**: Alleles with no KIR ligand data (null/None values) are ignored during consistency checking. For example, if C*17:01:01:01 has no data but C*17:01:01:02 and C*17:01:02 both have "C2", then C*17:01 will be compressed to "C2"
+- **Consistency validation**: If high-resolution alleles of the same 4-digit type have conflicting KIR ligand assignments (excluding null values), a ValueError is raised with detailed information about the conflicts
 - **Caching**: Data is cached locally after first retrieval for performance
 - **Validation**: SAB bead annotations (e.g., "Bw4", "Bw6") are used only for validation against API data
 - **Error Handling**: Raises ValueError if bead annotation conflicts with API data or if inconsistent KIR ligand types are found during compression
