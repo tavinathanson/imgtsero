@@ -212,11 +212,11 @@ kir_groups = classifier.get_all_kir_ligands()
 ## Testing
 
 ```bash
-# Run all tests (excluding slow tests)
+# Run all tests (slow tests are excluded by default)
 pytest
 
-# Run all tests including slow tests  
-pytest -m ""
+# Run all tests including slow tests
+pytest -m ""  # or pytest --no-markers
 
 # Run only the slow pagination test (fetches all 43,416 HLA alleles)
 pytest -m slow
@@ -225,7 +225,7 @@ pytest -m slow
 pytest tests/test_kir_ligand.py::TestKIRLigandCompression::test_c17_01_classification_with_real_data
 ```
 
-The slow test `test_total_database_alleles_by_pagination_v3_61_0` fetches all 43,416 HLA alleles across 44 API pages to verify our pagination implementation. It takes about 40 seconds to complete.
+**Note**: The slow test `test_total_database_alleles_by_pagination_v3_61_0` fetches all 43,416 HLA alleles across 44 API pages to verify our pagination implementation. It takes about 40 seconds to complete and is excluded from normal test runs.
 
 ## Project Structure
 
