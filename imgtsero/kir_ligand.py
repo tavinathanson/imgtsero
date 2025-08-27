@@ -240,6 +240,7 @@ class KIRLigandClassifier:
         try:
             with open(cache_file, 'w') as f:
                 json.dump(self._kir_ligand_map, f, indent=2)
+            print(f"KIR ligand data saved to: {cache_file}")
         except IOError as e:
             print(f"Warning: Could not save KIR ligand cache: {e}")
     

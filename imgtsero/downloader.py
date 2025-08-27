@@ -52,6 +52,7 @@ def download_data(version, data_dir="data", verbose=True):
         raise RuntimeError(f"Failed to download rel_dna_ser.{version}.txt")
     if verbose:
         print(f"Downloaded rel_dna_ser.{version}.txt")
+        print(f"Saved to: {rel_dna_ser_file}")
     
     # Download serological relationships mapping
     if verbose:
@@ -60,6 +61,7 @@ def download_data(version, data_dir="data", verbose=True):
         raise RuntimeError(f"Failed to download rel_ser_ser.{version}.txt")
     if verbose:
         print(f"Downloaded rel_ser_ser.{version}.txt")
+        print(f"Saved to: {rel_ser_ser_file}")
         print("Download completed successfully!")
     
     return {
